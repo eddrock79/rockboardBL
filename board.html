@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>
+(function(){
+  const p = new URLSearchParams(window.location.search).get('v');
+  if (p !== 'BL_BOARD_TOKEN_PLACEHOLDER') window.location.replace('/');
+  // PLACEHOLDER: Replace BL_BOARD_TOKEN_PLACEHOLDER with a new random token
+  // Generate one at: https://www.uuidgenerator.net/ or just type random chars
+})();
+</script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROCKBOARD · THE BANSHEE LABYRINTH</title>
+<link rel="icon" type="image/png" href="assets/banshee-logo.png">
+<!-- Banshee fonts: horror pixel aesthetic + sharp gothic display -->
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=UnifrakturMaguntia&family=Bebas+Neue&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ══════════════════════════════════════════════════════
+     BANSHEE LABYRINTH COLOUR SYSTEM
+     Deep Edinburgh dungeon — purple darkness, neon chaos
+     Portrait-optimised for 32" monitor (1440×2560 or rotated QHD)
+  ══════════════════════════════════════════════════════ */
+  :root {
+    --bg:        #07000f;          /* near-black with purple tint */
+    --surface:   rgba(20,0,40,0.85);
+    --accent:    #6600cc;          /* deep Banshee purple */
+    --accent2:   #ff00ff;          /* neon magenta — used sparingly */
+    --glow:      #8800ff;          /* purple glow */
+    --green:     #39FF14;          /* neon green for "live" indicators */
+    --amber:     #FFB347;          /* warm amber for No.1 / prize */
+    --white:     #f0eaff;          /* slightly purple-tinted white */
+    --grey:      rgba(240,234,255,0.45);
+    --card-bg:   rgba(18,0,35,0.88);
+    --font-gothic:  'UnifrakturMaguntia', cursive;  /* Banshee signature display */
+    --font-pixel:   'VT323', monospace;              /* score/counter retro feel */
+    --font-head:    'Bebas Neue', sans-serif;         /* track titles */
+    --font-body:    'Inter', sans-serif;              /* readability */
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--font-body);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* CRT scanline overlay — dungeon atmosphere */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 3px,
+      rgba(0,0,0,0.10) 3px, rgba(0,0,0,0.10) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Purple vignette pulse — breathing dungeon effect */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(40,0,80,0.6) 100%);
+    pointer-events: none;
+    z-index: 999;
+    animation: dungeonBreath 8s ease-in-out infinite;
+  }
+  @keyframes dungeonBreath {
+    0%, 100% { opacity: 0.7; }
+    50%       { opacity: 1.0; }
+  }
+
+  /* ── BACKGROUND ART ── */
+  #bg-art {
+    position: fixed; inset: -5%;
+    background-size: cover; background-position: center;
+    /* PLACEHOLDER: Replace with actual Banshee dungeon/labyrinth ambiance image */
+    background-image: url('https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=1440&q=80');
+    filter: blur(22px) saturate(0.4) brightness(0.25) hue-rotate(260deg);
+    transition: opacity 2.5s ease;
+    z-index: 0;
+    animation: kenburns 25s ease-in-out infinite;
+  }
+  #bg-art.fade-out { opacity: 0; }
+  #bg-art-next {
+    position: fixed; inset: -5%;
+    background-size: cover; background-position: center;
+    filter: blur(22px) saturate(0.4) brightness(0.25) hue-rotate(260deg);
+    opacity: 0; transition: opacity 2.5s ease;
+    z-index: 0;
+  }
+  #bg-art-next.fade-in { opacity: 1; }
+  @keyframes kenburns {
+    0%   { transform: scale(1.0) translate(0%,0%); }
+    50%  { transform: scale(1.08) translate(1%,-1%); }
+    100% { transform: scale(1.0) translate(0%,0%); }
+  }
+
+  /* ── YOUTUBE VIDEO BACKGROUND ── */
+  #yt-bg-wrap {
+    position: fixed; inset: 0; z-index: 0;
+    opacity: 0; transition: opacity 2s ease;
+    pointer-events: none; overflow: hidden;
+  }
+  #yt-bg-wrap.show { opacity: 1; }
+  /* Portrait mode: video fills vertical screen correctly */
+  #yt-bg-wrap iframe {
+    position: absolute;
+    top: 50%; left: 50%;
+    /* Portrait: 9:16 fill — video is taller than wide so scale to width */
+    width: 100vw;
+    height: 177.78vw;   /* 16:9 at 100vw */
+    min-height: 100vh;
+    min-width: 56.25vh; /* 9:16 inverse */
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    border: none;
+  }
+  #yt-click-blocker { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: transparent; }
+  #yt-overlay {
+    position: fixed; inset: 0; z-index: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(40,0,80,0.20) 50%, rgba(0,0,0,0.85) 100%);
+    pointer-events: none;
+  }
+  #yt-label {
+    position: fixed; bottom: 60px; right: 20px;
+    font-family: var(--font-pixel); font-size: 12px;
+    letter-spacing: 2px; color: rgba(240,234,255,0.2);
+    z-index: 2; display: none;
+  }
+  #yt-label.show { display: block; }
+
+  /* ══════════════════════════════════════════════════════
+     PORTRAIT LAYOUT — 1440 × 2560 (32" rotated)
+     Single column, stacked vertically
+     Sections from top to bottom:
+       1. Venue header (Banshee name + gothic branding)
+       2. Now Playing (album art PORTRAIT — tall not square)
+       3. Leaderboard (scrolls, dominant section)
+       4. QR code + equalizer (footer strip)
+       5. Ticker (very bottom)
+  ══════════════════════════════════════════════════════ */
+  #app {
+    position: relative; z-index: 1;
+    width: 100vw; height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows:
+      auto       /* #header: venue name */
+      auto       /* #now-playing: portrait album art block */
+      1fr        /* #leaderboard: fills remaining space */
+      auto       /* #footer-strip: QR + equalizer side by side */
+      auto;      /* #callout: ticker */
+    grid-template-areas:
+      "header"
+      "nowplaying"
+      "leaderboard"
+      "footerstrip"
+      "callout";
+    padding: 0;
+    gap: 0;
+  }
+
+  /* ── HEADER ── */
+  #header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px 12px;
+    border-bottom: 2px solid rgba(102,0,204,0.5);
+    background: rgba(7,0,15,0.9);
+    backdrop-filter: blur(20px);
+    position: relative;
+    z-index: 10;
+  }
+  #header-left { display: flex; align-items: center; gap: 16px; }
+  #venue-logo {
+    height: 64px; width: auto; object-fit: contain;
+    filter: drop-shadow(0 0 14px rgba(136,0,255,0.7));
+    animation: logoMTV 6s ease-in-out infinite;
+    transform-style: preserve-3d;
+  }
+  @keyframes logoMTV {
+    0%   { transform: perspective(400px) rotateY(0deg);   opacity:1; }
+    8%   { transform: perspective(400px) rotateY(90deg);  opacity:0; }
+    9%   { transform: perspective(400px) rotateY(270deg); opacity:0; }
+    18%  { transform: perspective(400px) rotateY(360deg); opacity:1; }
+    100% { transform: perspective(400px) rotateY(360deg); opacity:1; }
+  }
+  #venue-name {
+    font-family: var(--font-gothic);
+    font-size: 46px;
+    color: var(--white);
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(136,0,255,0.6), 0 0 60px rgba(102,0,204,0.3);
+    letter-spacing: 2px;
+  }
+  #venue-sub {
+    font-family: var(--font-pixel);
+    font-size: 14px;
+    color: var(--accent2);
+    letter-spacing: 4px;
+    margin-top: 2px;
+    text-shadow: 0 0 10px rgba(255,0,255,0.5);
+  }
+  #tshirt-badge { display: none; flex-direction: column; align-items: flex-end; gap: 3px; }
+  #tshirt-badge.active { display: flex; }
+  #tshirt-badge .badge-label { font-family: var(--font-pixel); font-size: 12px; letter-spacing: 3px; color: var(--amber); }
+  #tshirt-badge .badge-prize { font-family: var(--font-head); font-size: 28px; color: var(--white); letter-spacing: 2px; }
+  #tshirt-badge .badge-sub { font-family: var(--font-pixel); font-size: 10px; color: rgba(240,234,255,0.4); letter-spacing: 2px; }
+  #aq-indicator { display: none; flex-direction: column; align-items: flex-end; gap: 3px; }
+
+  /* ── NOW PLAYING — PORTRAIT STYLE ── */
+  /* In portrait orientation the album art is landscape-cropped, wide strip not square.
+     We want a cinematic wide band showing the art. */
+  #now-playing {
+    grid-area: nowplaying;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    grid-template-rows: auto;
+    gap: 0;
+    background: rgba(7,0,15,0.7);
+    border-bottom: 1px solid rgba(102,0,204,0.3);
+    position: relative;
+    min-height: 180px;
+    max-height: 220px;
+  }
+
+  /* Album art: tall portrait crop on the left */
+  #album-art {
+    width: 200px;
+    height: 100%;
+    min-height: 180px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 4px 0 30px rgba(102,0,204,0.4), 0 0 60px rgba(40,0,80,0.5);
+    flex-shrink: 0;
+  }
+  #album-img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center;
+    transition: opacity 1.5s ease;
+    filter: saturate(1.1);
+  }
+  #album-art-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 60%, rgba(7,0,15,0.7));
+    pointer-events: none;
+  }
+
+  /* Track info: right side of now-playing */
+  #track-info-wrap {
+    padding: 18px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+  }
+  #track-status {
+    font-family: var(--font-pixel);
+    font-size: 13px;
+    color: var(--green);
+    letter-spacing: 3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.4s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--green);
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+  #track-name {
+    font-family: var(--font-head);
+    font-size: 38px;
+    line-height: 1.05;
+    color: var(--white);
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 30px rgba(136,0,255,0.3);
+  }
+  #track-artist {
+    font-size: 16px;
+    color: rgba(240,234,255,0.7);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+  #progress-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px; overflow: hidden;
+    margin-top: 6px;
+  }
+  #progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px; width: 0%;
+    transition: width 1s linear;
+  }
+  #winamp-counter {
+    display: flex; gap: 10px; align-items: center;
+    font-family: var(--font-pixel); font-size: 18px;
+    color: var(--accent2);
+    letter-spacing: 2px;
+  }
+  .wc-label { color: rgba(240,234,255,0.3); font-size: 11px; letter-spacing: 3px; align-self: flex-end; padding-bottom: 2px; }
+
+  /* ── LEADERBOARD — dominant section ── */
+  #leaderboard {
+    grid-area: leaderboard;
+    overflow: hidden;
+    position: relative;
+    padding: 0 20px;
+    background: linear-gradient(180deg, rgba(7,0,15,0.4) 0%, rgba(7,0,15,0.85) 100%);
+  }
+  #leaderboard-title {
+    font-family: var(--font-pixel);
+    font-size: 13px; letter-spacing: 5px;
+    color: rgba(240,234,255,0.3);
+    padding: 10px 0 6px;
+  }
+  #tracks-list {
+    position: relative;
+    height: calc(100% - 38px);
+  }
+
+  /* Track cards — portrait is narrower in width, slightly taller cards */
+  .track-card {
+    position: absolute; left: 0; right: 0; height: 88px;
+    background: var(--card-bg);
+    border: 1px solid rgba(102,0,204,0.2);
+    border-left: 4px solid rgba(102,0,204,0.4);
+    border-radius: 0 6px 6px 0;
+    backdrop-filter: blur(30px);
+    display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px;
+    transition: top 0.65s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .track-card.top-card {
+    border-color: rgba(255,179,71,0.6);
+    border-left-color: var(--amber);
+    background: rgba(40,18,0,0.92);
+    box-shadow: 0 0 40px rgba(255,0,255,0.08), 0 0 20px rgba(255,179,71,0.10), inset 0 0 40px rgba(255,179,71,0.03);
+  }
+  .track-card.rising { border-left-color: var(--green); border-color: rgba(57,255,20,0.3); }
+  .track-card.new-entry { animation: slideIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
+
+  @keyframes chosenFlash {
+    0%   { border-color: var(--amber); box-shadow: 0 0 0px rgba(255,0,255,0);  background: rgba(40,18,0,0.92); }
+    25%  { border-color: #fff;         box-shadow: 0 0 60px rgba(255,0,255,0.5), 0 0 120px rgba(255,179,71,0.6); background: rgba(255,0,255,0.15); }
+    50%  { border-color: var(--amber); box-shadow: 0 0 30px rgba(255,179,71,0.4); background: rgba(40,18,0,0.92); }
+    75%  { border-color: #fff;         box-shadow: 0 0 60px rgba(255,0,255,0.5), 0 0 120px rgba(255,179,71,0.6); background: rgba(255,0,255,0.15); }
+    100% { border-color: var(--amber); box-shadow: 0 0 30px rgba(255,179,71,0.12); background: rgba(40,18,0,0.92); }
+  }
+  .track-card.chosen { animation: chosenFlash 0.8s ease-in-out 4; }
+
+  .track-rank { font-family: var(--font-head); font-size: 38px; color: rgba(240,234,255,0.1); min-width: 46px; text-align: center; line-height: 1; flex-shrink: 0; }
+  .track-card.top-card .track-rank { color: var(--amber); }
+
+  .track-thumb { width: 58px; height: 58px; border-radius: 4px; background: #120028; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+
+  .track-details { flex: 1; min-width: 0; }
+  .track-title { font-family: var(--font-head); font-size: 26px; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+  .track-card.top-card .track-title { font-size: 28px; color: var(--amber); }
+  .track-artist-name { font-size: 14px; color: rgba(240,234,255,0.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; font-weight: 400; }
+  .track-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .track-requester { font-family: var(--font-pixel); font-size: 17px; color: rgba(180,80,255,1); letter-spacing: 1px; }
+  .track-card.top-card .track-requester { color: var(--amber); font-size: 18px; }
+
+  .track-votes { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 58px; }
+  .vote-count { font-family: var(--font-pixel); font-size: 40px; color: var(--white); line-height: 1; }
+  .track-card.top-card .vote-count { color: var(--amber); font-size: 44px; }
+  .cooldown-badge {
+    position: absolute; top: 6px; right: 40px;
+    background: rgba(40,0,80,0.85); color: #cc88ff;
+    font-family: var(--font-pixel); font-size: 9px; letter-spacing: 2px;
+    padding: 3px 7px; border-radius: 3px; border: 1px solid rgba(102,0,204,0.5);
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .track-card.on-cooldown { opacity: 0.6; border-left-color: rgba(102,0,204,0.3); }
+  .track-card.on-cooldown .track-title { color: rgba(240,234,255,0.45); }
+  .vote-label { font-family: var(--font-pixel); font-size: 10px; color: rgba(240,234,255,0.3); letter-spacing: 2px; }
+  .rank-change { font-family: var(--font-pixel); font-size: 16px; min-width: 22px; text-align: center; flex-shrink: 0; }
+  .rank-change.up   { color: var(--green); text-shadow: 0 0 8px var(--green); }
+  .rank-change.down { color: #ff4444; }
+  .rank-change.same { color: rgba(240,234,255,0.15); }
+
+  /* ── FOOTER STRIP — QR + equalizer ── */
+  #footer-strip {
+    grid-area: footerstrip;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    align-items: end;
+    border-top: 1px solid rgba(102,0,204,0.3);
+    background: rgba(7,0,15,0.9);
+    padding: 8px 20px 6px;
+    gap: 16px;
+    min-height: 110px;
+  }
+
+  /* QR code in portrait — smaller, tucked left */
+  #qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  #qr-canvas { width: 110px !important; height: 110px !important; }
+  #qr-canvas canvas, #qr-canvas img { width: 110px !important; height: 110px !important; border-radius: 4px; }
+  #qr-hint-label {
+    font-family: var(--font-pixel); font-size: 11px;
+    letter-spacing: 2px; color: rgba(240,234,255,0.4);
+  }
+
+  /* Equalizer */
+  #equalizer {
+    display: flex; align-items: flex-end; gap: 2px; height: 90px;
+    padding-bottom: 4px;
+  }
+  .eq-bar {
+    flex: 1; border-radius: 2px 2px 0 0; min-height: 3px;
+    transition: height 0.05s ease-out;
+  }
+  /* Banshee purple/magenta EQ bars */
+  .eq-bar:nth-child(4n+1) { background: linear-gradient(to top, #330066, #6600cc, #aa00ff); box-shadow: 0 0 6px rgba(102,0,204,0.5); }
+  .eq-bar:nth-child(4n+2) { background: linear-gradient(to top, #440066, #8800ff, #cc00ff); box-shadow: 0 0 4px rgba(136,0,255,0.4); }
+  .eq-bar:nth-child(4n+3) { background: linear-gradient(to top, #550044, #cc00aa, #ff00ff); box-shadow: 0 0 4px rgba(204,0,170,0.4); }
+  .eq-bar:nth-child(4n)   { background: linear-gradient(to top, #440055, #9900cc, #ff00cc); box-shadow: 0 0 4px rgba(153,0,204,0.4); }
+
+  /* ── TICKER ── */
+  #callout {
+    grid-area: callout;
+    display: flex; align-items: center; gap: 0;
+    border-top: 2px solid rgba(102,0,204,0.5);
+    overflow: hidden;
+    background: rgba(7,0,15,0.95);
+    height: 52px;
+    position: relative; z-index: 10;
+  }
+  #callout-tag {
+    font-family: var(--font-pixel); font-size: 14px;
+    letter-spacing: 3px; color: var(--white);
+    white-space: nowrap; flex-shrink: 0;
+    padding: 0 14px;
+    background: var(--accent);
+    height: 100%; display: flex; align-items: center;
+    box-shadow: 4px 0 20px rgba(102,0,204,0.5);
+  }
+  #callout-text {
+    font-family: var(--font-pixel); font-size: 32px;
+    color: #e0bbff; white-space: nowrap;
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(204,0,255,0.4), 0 2px 4px rgba(0,0,0,0.8);
+    padding-left: 20px; font-weight: normal;
+  }
+  @keyframes ticker { 0%{transform:translateX(100vw)} 100%{transform:translateX(-180%)} }
+
+  /* ── COUNTDOWN TIMER ── */
+  #queue-countdown {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 6px;
+    z-index: 20; text-align: center;
+  }
+  #queue-countdown.show { display: flex; }
+  #countdown-label { font-family: var(--font-pixel); font-size: 14px; letter-spacing: 4px; color: rgba(240,234,255,0.5); }
+  #countdown-time { font-family: var(--font-pixel); font-size: 72px; color: var(--amber); letter-spacing: 6px; line-height: 1; text-shadow: 0 0 40px rgba(255,179,71,0.6), 0 2px 8px rgba(0,0,0,0.9); }
+  #countdown-time.urgent { color: var(--green); text-shadow: 0 0 40px rgba(57,255,20,0.7), 0 2px 8px rgba(0,0,0,0.9); animation: pulse 0.5s ease-in-out infinite; }
+  #countdown-bar { width: 260px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+  #countdown-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width 1s linear; }
+  #countdown-sub { font-family: var(--font-pixel); font-size: 13px; letter-spacing: 3px; color: rgba(240,234,255,0.4); }
+
+  /* ── ALL-TIME TOP 10 — hidden panel, toggled by staff ── */
+  #alltime-panel {
+    position: fixed; top: 90px; right: 16px;
+    background: rgba(7,0,15,0.95);
+    border: 1px solid rgba(102,0,204,0.5);
+    border-top: 3px solid var(--accent);
+    border-radius: 0 0 6px 6px;
+    padding: 0; z-index: 10;
+    backdrop-filter: blur(20px);
+    width: 250px;
+    display: none; flex-direction: column;
+    box-shadow: 0 0 40px rgba(102,0,204,0.2), 0 8px 32px rgba(0,0,0,0.8);
+  }
+  #alltime-panel.show { display: flex; }
+  #alltime-header { padding: 8px 12px 7px; border-bottom: 1px solid rgba(102,0,204,0.3); display: flex; align-items: center; justify-content: space-between; }
+  #alltime-title { font-family: var(--font-pixel); font-size: 12px; letter-spacing: 4px; color: rgba(240,234,255,0.4); }
+  #alltime-reset-btn { font-family: var(--font-pixel); font-size: 10px; letter-spacing: 2px; color: rgba(102,0,204,0.6); background: none; border: 1px solid rgba(102,0,204,0.3); border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+  #alltime-reset-btn:hover { color: var(--accent2); border-color: var(--accent2); }
+  #alltime-list { padding: 4px 0; }
+  .at-row { display: flex; align-items: center; gap: 10px; padding: 5px 12px; transition: background 0.2s; border-left: 3px solid transparent; }
+  .at-row:hover { background: rgba(102,0,204,0.08); }
+  .at-row.at-top { background: rgba(40,18,0,0.6); border-left-color: var(--amber); }
+  .at-pos { font-family: var(--font-head); font-size: 20px; color: rgba(240,234,255,0.15); min-width: 28px; text-align: center; flex-shrink: 0; }
+  .at-row.at-top .at-pos { color: var(--amber); }
+  .at-details { flex: 1; min-width: 0; }
+  .at-title { font-family: var(--font-head); font-size: 15px; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; letter-spacing: 0.3px; }
+  .at-row.at-top .at-title { color: var(--amber); font-size: 16px; }
+  .at-artist { font-size: 11px; color: rgba(240,234,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .at-count { font-family: var(--font-pixel); font-size: 16px; color: var(--amber); min-width: 26px; text-align: right; flex-shrink: 0; }
+  .at-count-label { font-family: var(--font-pixel); font-size: 9px; color: rgba(240,234,255,0.25); letter-spacing: 1px; text-align: right; margin-top: 2px; }
+
+  /* ── WINNER OVERLAY ── */
+  #winner-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.93); z-index: 500; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center; }
+  #winner-overlay.show { display: flex; }
+  #winner-crown { font-size: 72px; animation: bounce 0.8s ease infinite alternate; }
+  @keyframes bounce { from{transform:translateY(0)} to{transform:translateY(-12px)} }
+  #winner-title { font-family: var(--font-gothic); font-size: 64px; letter-spacing: 6px; color: var(--accent2); text-shadow: 0 0 40px rgba(255,0,255,0.6); }
+  #winner-track { font-family: var(--font-head); font-size: 38px; letter-spacing: 3px; color: var(--white); }
+  #winner-artist-line { font-size: 18px; color: rgba(240,234,255,0.6); letter-spacing: 2px; }
+  #winner-callout { font-family: var(--font-pixel); font-size: 24px; color: var(--green); letter-spacing: 3px; max-width: 600px; line-height: 1.4; }
+  #winner-votes { font-family: var(--font-pixel); font-size: 16px; color: rgba(240,234,255,0.4); letter-spacing: 3px; }
+  #winner-close { margin-top: 16px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: 3px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); padding: 10px 24px; border-radius: 4px; background: transparent; color: rgba(240,234,255,0.4); transition: all 0.2s; }
+  #winner-close:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .confetti-piece { position: fixed; width: 8px; height: 14px; opacity: 0; animation: confettiFall 3s ease-in forwards; z-index: 501; border-radius: 2px; }
+  @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
+
+  /* ── FIREBASE STATUS ── */
+  #firebase-status { position: fixed; top: 10px; right: 12px; font-family: var(--font-pixel); font-size: 12px; letter-spacing: 2px; padding: 5px 10px; border-radius: 4px; z-index: 100; transition: opacity 1s ease; }
+  #firebase-status.ok  { background: rgba(57,255,20,0.1);  border: 1px solid rgba(57,255,20,0.3);  color: var(--green); }
+  #firebase-status.err { background: rgba(255,68,68,0.1);  border: 1px solid rgba(255,68,68,0.3);  color: #ff6666; }
+
+  /* ── ACTIVATE OVERLAY ── */
+  #activate-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(7,0,15,0.92);
+    backdrop-filter: blur(20px);
+  }
+  #activate-inner { text-align: center; }
+  #activate-logo {
+    max-width: 320px; width: 70%;
+    filter: drop-shadow(0 0 30px rgba(136,0,255,0.8));
+    margin-bottom: 16px;
+  }
+  #activate-subtitle {
+    font-family: var(--font-pixel); font-size: 20px;
+    letter-spacing: 6px; color: var(--accent);
+    margin-top: 4px;
+    text-shadow: 0 0 15px rgba(102,0,204,0.7);
+  }
+  #start-btn {
+    margin-top: 36px;
+    background: var(--accent);
+    border: none; border-radius: 8px;
+    padding: 18px 52px;
+    color: var(--white);
+    font-family: var(--font-pixel); font-size: 28px;
+    letter-spacing: 6px; cursor: pointer;
+    display: block; margin-left: auto; margin-right: auto;
+    box-shadow: 0 0 30px rgba(102,0,204,0.6);
+    transition: box-shadow 0.2s;
+  }
+  #start-btn:hover { box-shadow: 0 0 50px rgba(255,0,255,0.5); }
+
+  /* ── GOTHIC DECORATIVE BORDER on top header ── */
+  #header::after {
+    content: '';
+    position: absolute; bottom: -2px; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), var(--accent), transparent);
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<div id="bg-art"></div>
+<div id="bg-art-next"></div>
+<div id="yt-bg-wrap"><div id="yt-iframe"></div></div>
+<div id="yt-click-blocker"></div>
+<div id="yt-overlay"></div>
+<div id="yt-label">▶ RADIO</div>
+
+<!-- Activation overlay — required for autoplay -->
+<div id="activate-overlay">
+  <div id="activate-inner">
+    <!-- PLACEHOLDER: Replace with actual Banshee logo -->
+    <img id="activate-logo" src="assets/banshee-logo.png" alt="The Banshee Labyrinth"
+         onerror="this.style.display='none'">
+    <div style="font-family:'UnifrakturMaguntia',cursive;font-size:48px;color:#f0eaff;text-shadow:0 0 20px rgba(136,0,255,0.7);letter-spacing:2px">The Banshee</div>
+    <div id="activate-subtitle">▶ ROCKBOARD</div>
+    <button id="start-btn" onclick="window.activateVideo()">▶ TAP TO START</button>
+  </div>
+</div>
+
+<div id="firebase-status" class="ok">● CONNECTING...</div>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div id="header-left">
+      <img id="venue-logo" src="assets/banshee-logo.png" alt="The Banshee Labyrinth"
+           onerror="this.style.display='none'">
+      <div>
+        <div id="venue-name">THE BANSHEE LABYRINTH</div>
+        <div id="venue-sub">▶ ROCKBOARD · VOTE FOR YOUR TRACK</div>
+      </div>
+    </div>
+    <div id="tshirt-badge" class="active">
+      <div class="badge-label">🏆 TONIGHT'S PRIZE</div>
+      <div class="badge-prize">T-SHIRT</div>
+      <div class="badge-sub">MOST UNIQUE VOTES WINS</div>
+    </div>
+    <div id="aq-indicator">
+      <div style="font-family:var(--font-pixel);font-size:10px;letter-spacing:3px;color:rgba(30,215,96,0.6)">AUTO-QUEUE</div>
+      <div style="font-family:var(--font-pixel);font-size:18px;color:#1ED760;letter-spacing:2px">▶ ACTIVE</div>
+    </div>
+  </div>
+
+  <!-- NOW PLAYING — portrait layout: album art left, track info right -->
+  <div id="now-playing">
+    <div id="album-art">
+      <!-- PLACEHOLDER: fallback dungeon ambience image -->
+      <img id="album-img" src="https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=400&q=80" alt="Album Art">
+      <div id="album-art-overlay"></div>
+    </div>
+    <div id="track-info-wrap">
+      <div id="track-status">
+        <div id="status-dot"></div>
+        <span id="status-text">NOW PLAYING</span>
+      </div>
+      <div id="track-name">Loading...</div>
+      <div id="track-artist">—</div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <div id="winamp-counter" style="margin-top:6px">
+        <span class="wc-label">TRACK</span><span id="wc-num">001</span>
+        <span style="color:rgba(240,234,255,0.2)">|</span>
+        <span class="wc-label">VOTES</span><span id="wc-total">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboard">
+    <div id="leaderboard-title">▸ TONIGHT'S MOST WANTED</div>
+    <div id="tracks-list"></div>
+  </div>
+
+  <!-- FOOTER STRIP: QR + equalizer -->
+  <div id="footer-strip">
+    <div id="qr-wrap">
+      <div id="qr-canvas"></div>
+      <div id="qr-hint-label">SCAN TO VOTE</div>
+    </div>
+    <div id="equalizer"></div>
+  </div>
+
+  <!-- TICKER -->
+  <div id="callout">
+    <div id="callout-tag">▶ BANSHEE</div>
+    <div id="callout-text">Loading the vibe...</div>
+  </div>
+
+</div>
+
+<!-- Countdown timer (overlays leaderboard area) -->
+<div id="queue-countdown">
+  <div id="countdown-label">▸ NEXT TRACK QUEUES IN</div>
+  <div id="countdown-time">--:--</div>
+  <div id="countdown-bar"><div id="countdown-fill" style="width:100%"></div></div>
+  <div id="countdown-sub">VOTE NOW TO PUSH YOUR TRACK TO NO.1</div>
+</div>
+
+<!-- All-time panel (hidden, toggled from staff page) -->
+<div id="alltime-panel">
+  <div id="alltime-header">
+    <div id="alltime-title">🏆 ALL-TIME TOP 10</div>
+    <button id="alltime-reset-btn" onclick="confirmResetAllTime()">RESET</button>
+  </div>
+  <div id="alltime-list"></div>
+</div>
+
+<!-- Winner reveal overlay -->
+<div id="winner-overlay">
+  <div id="winner-crown">🏆</div>
+  <div id="winner-title">TONIGHT'S CHAMPION</div>
+  <div id="winner-track">—</div>
+  <div id="winner-artist-line">—</div>
+  <div id="winner-callout">—</div>
+  <div id="winner-votes">— UNIQUE VOTES</div>
+  <button id="winner-close" onclick="closeWinner()">[ CLOSE · NEW NIGHT ]</button>
+</div>
+
+<script src="config.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── CONFIG — reads from config.js, with BL fallbacks ──
+const CONFIG = {
+  venueName:          (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.venueName)          || "THE BANSHEE LABYRINTH",
+  venueSub:           (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.venueSub)           || "▶ ROCKBOARD · VOTE FOR YOUR TRACK",
+  lastfm_user:        (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.lastfm_user)        || "",
+  lastfm_key:         (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.lastfm_key)         || "",
+  tshirtMode:         (typeof VENUE_CONFIG!=='undefined') ? VENUE_CONFIG.tshirtMode           : true,
+  firebase:           (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.firebase)           || {},
+  youtube_key:        (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.youtube_key)        || "",
+  spotify_worker_url: (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.spotify_worker_url) || "https://rockboard-bl.eddrock79.workers.dev",
+  staffPin:           (typeof VENUE_CONFIG!=='undefined' && VENUE_CONFIG.staffPin)           || "1234",
+};
+
+// ── SESSION TOKEN (QR) ──
+const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
+
+function generateToken() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+async function initSession() {
+  const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const sessionRef = doc(db, C_SETTINGS, 'session');
+  const snap = await getDoc(sessionRef);
+  const now = Date.now();
+  let token, expiry;
+  if (snap.exists()) {
+    const data = snap.data();
+    if (data.expiry && data.expiry > now) {
+      token  = data.token;
+      expiry = data.expiry;
+    }
+  }
+  if (!token) {
+    token  = generateToken();
+    expiry = now + SESSION_DURATION_MS;
+    await setDoc(sessionRef, { token, expiry, createdAt: now });
+  }
+  // Build QR URL — PLACEHOLDER: update to actual Banshee domain once deployed
+  const qrUrl = `https://rockboardbl.hauntedpubs.co.uk/?v=${token}`;
+  new QRCode(document.getElementById('qr-canvas'), {
+    text: qrUrl,
+    width: 110, height: 110,
+    colorDark: '#f0eaff',
+    colorLight: '#07000f',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+}
+
+// ── FIREBASE INIT ──
+const app = initializeApp(CONFIG.firebase);
+const db  = getFirestore(app);
+
+// ── BL venue collection names (separate from BR's br_* collections) ──
+const C_TRACKS   = 'bl_tracks';
+const C_PLAYED   = 'bl_played';
+const C_SETTINGS = 'bl_settings';
+const C_ALLTIME  = 'bl_alltime';
+
+initSession();
+
+const statusEl = document.getElementById('firebase-status');
+
+// ── APPLY VENUE CONFIG TO DOM ──
+document.getElementById('venue-name').textContent = CONFIG.venueName;
+document.getElementById('venue-sub').textContent  = CONFIG.venueSub;
+document.title = CONFIG.venueName + ' · ROCKBOARD';
+if (!CONFIG.tshirtMode) document.getElementById('tshirt-badge').classList.remove('active');
+
+// ── SETTINGS LISTENER (tshirt toggle, autoqueue, countdown) ──
+let countdownTimer    = null;
+let totalQueueMs      = 2 * 60 * 1000;
+let nextQueueAt_local = null;
+
+onSnapshot(doc(db, C_SETTINGS, 'venue'), (snap) => {
+  if (!snap.exists()) return;
+  const data = snap.data();
+
+  const badge = document.getElementById('tshirt-badge');
+  if (typeof data.tshirtMode !== 'undefined') {
+    if (data.tshirtMode) badge.classList.add('active');
+    else badge.classList.remove('active');
+  }
+
+  const aqIndicator = document.getElementById('aq-indicator');
+  if (aqIndicator) aqIndicator.style.display = data.autoQueue ? 'flex' : 'none';
+
+  if (typeof data.nextQueueAt !== 'undefined') nextQueueAt_local = data.nextQueueAt;
+
+  const mins = data.autoQueueMins || 2;
+  if (data.autoQueue && !boardAutoQueueOn) {
+    boardAutoQueueOn   = true;
+    boardAutoQueueMins = mins;
+    startBoardQueueChecker();
+  } else if (!data.autoQueue && boardAutoQueueOn) {
+    stopBoardAutoQueue();
+  } else if (data.autoQueue && boardAutoQueueMins !== mins) {
+    boardAutoQueueMins = mins;
+  }
+  window.boardAutoApprove = data.autoApprove === true;
+  if (typeof data.videoOffset !== 'undefined') window.videoOffset = data.videoOffset || 0;
+
+  const countdown = document.getElementById('queue-countdown');
+  if (data.autoQueue && data.nextQueueAt) {
+    totalQueueMs = (data.autoQueueMins || 2) * 60 * 1000;
+    countdown.classList.add('show');
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      const remaining = data.nextQueueAt - Date.now();
+      if (remaining <= 0) {
+        document.getElementById('countdown-time').textContent = '00:00';
+        document.getElementById('countdown-fill').style.width = '0%';
+        clearInterval(countdownTimer);
+        const topCard = document.querySelector('.track-card.top-card');
+        if (topCard) { topCard.classList.add('chosen'); setTimeout(() => topCard.classList.remove('chosen'), 3500); }
+        return;
+      }
+      const m = Math.floor(remaining / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      const timeEl = document.getElementById('countdown-time');
+      timeEl.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      timeEl.classList.toggle('urgent', remaining < 30000);
+      const pct = Math.min(100, (remaining / totalQueueMs) * 100);
+      document.getElementById('countdown-fill').style.width = pct + '%';
+    }, 1000);
+  } else {
+    countdown.classList.remove('show');
+    clearInterval(countdownTimer);
+  }
+});
+
+// ── AUTO-QUEUE ENGINE ──
+let boardTracks        = [];
+let boardAutoQueueOn   = false;
+let boardAutoQueueMins = 2;
+let boardQueueChecker  = null;
+let boardFiring        = false;
+
+async function boardSpotifyCall(endpoint, method='GET', body=null) {
+  if (!CONFIG.spotify_worker_url) return null;
+  try {
+    const opts = { method, headers:{ 'Content-Type':'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(CONFIG.spotify_worker_url + endpoint, opts);
+    return await res.json();
+  } catch(e) { return null; }
+}
+
+async function boardGetRecentlyPlayed() {
+  try {
+    const { getDocs, collection: col } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await getDocs(col(db, C_PLAYED));
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    return snap.docs
+      .filter(d => d.data().playedAt > cutoff)
+      .map(d => (d.data().title + '|||' + d.data().artist).toLowerCase());
+  } catch(e) { return []; }
+}
+
+function cleanT(t) {
+  return t.replace(/\s*[-–]\s*(remaster|remastered|remix|live|acoustic|edit|version|radio|single|album|mono|stereo|demo|instrumental).*/i,'')
+          .replace(/\s*\((remaster|remastered|remix|live|acoustic|edit|version|radio|single|album|mono|stereo|demo|feat\.?|ft\.?)[^)]*\)/gi,'')
+          .trim() || t.trim();
+}
+
+async function boardRunAutoQueue() {
+  if (boardFiring) return;
+  boardFiring = true;
+  try {
+    const recentlyPlayed = await boardGetRecentlyPlayed();
+    const approved = [...boardTracks]
+      .filter(t => t.approved && !t.spotifyQueued)
+      .sort((a,b) => b.uniqueVoters - a.uniqueVoters || (a.addedAt||0) - (b.addedAt||0));
+    if (!approved.length) { boardFiring = false; return; }
+    const top = approved.find(t => !recentlyPlayed.includes((t.title+'|||'+t.artist).toLowerCase()));
+    if (!top) { boardFiring = false; return; }
+    const ct = cleanT(top.title);
+    const ca = top.artist.replace(/\s*feat\?.*/i,'').trim() || top.artist;
+    let found = null;
+    for (const [t,a] of [[ct,ca],[top.title,ca],[ct,top.artist],[top.title,top.artist],[ct,''],[top.title,'']]) {
+      found = await boardSpotifyCall('/search?track='+encodeURIComponent(t)+(a?'&artist='+encodeURIComponent(a):''));
+      if (found?.uri) break;
+    }
+    if (!found?.uri) { boardFiring = false; return; }
+    const result = await boardSpotifyCall('/queue', 'POST', { uri: found.uri });
+    if (result?.ok) {
+      await updateDoc(doc(db, C_TRACKS, top.id), { spotifyQueued: true, spotifyUri: found.uri, queuedAt: Date.now() });
+      const nextAt = Date.now() + (boardAutoQueueMins * 60 * 1000);
+      nextQueueAt_local = nextAt;
+      await updateDoc(doc(db, C_SETTINGS, 'venue'), { nextQueueAt: nextAt });
+      setTimeout(async () => {
+        try {
+          await setDoc(doc(db, C_PLAYED, top.id), { title:top.title, artist:top.artist, playedAt:Date.now(), spotifyUri:found.uri });
+          await deleteDoc(doc(db, C_TRACKS, top.id));
+          recordPlayedToAllTime(top.title, top.artist, top.thumb || '');
+          loadAllTimeTop10();
+        } catch(e) {}
+      }, 30000);
+    }
+  } catch(e) { console.warn('Auto-queue error', e); }
+  boardFiring = false;
+}
+
+function startBoardQueueChecker() {
+  clearInterval(boardQueueChecker);
+  boardQueueChecker = setInterval(async () => {
+    if (!boardAutoQueueOn || boardFiring) return;
+    if (nextQueueAt_local && Date.now() >= nextQueueAt_local) {
+      try {
+        const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        const snap = await getDoc(doc(db, C_SETTINGS, 'venue'));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (!data.autoQueue) return;
+        if (data.nextQueueAt && Date.now() >= data.nextQueueAt) {
+          nextQueueAt_local = null;
+          await boardRunAutoQueue();
+        }
+      } catch(e) { console.warn('Queue check error', e); }
+    }
+  }, 2000);
+}
+
+function stopBoardAutoQueue() {
+  clearInterval(boardQueueChecker);
+  boardQueueChecker = null;
+  boardAutoQueueOn  = false;
+  nextQueueAt_local = null;
+}
+
+// ── EQUALIZER (48 bars, purple/magenta palette) ──
+const NUM_BARS = 48;
+const eqEl  = document.getElementById('equalizer');
+let   eqBars = [];
+for (let i = 0; i < NUM_BARS; i++) {
+  const b = document.createElement('div');
+  b.className = 'eq-bar'; b.style.height = '4px';
+  eqEl.appendChild(b);
+  eqBars.push({ el:b, current:4, target:4 });
+}
+let eqPeaks = eqBars.map(() => 0);
+let eqPeakDecay = eqBars.map(() => 0);
+function animateEQ() {
+  const time = Date.now() / 1000;
+  eqBars.forEach((b, i) => {
+    const wave1 = Math.sin(time * 2.1 + i * 0.3) * 0.5 + 0.5;
+    const wave2 = Math.sin(time * 3.7 + i * 0.7) * 0.3 + 0.5;
+    const base  = 8 + Math.sin(i / NUM_BARS * Math.PI) * 55;
+    if (Math.random() < 0.12) b.target = base * (wave1 * 0.6 + wave2 * 0.4) + Math.random() * 20;
+    b.current += (b.target - b.current) * 0.22;
+    b.el.style.height = Math.max(3, b.current) + 'px';
+    if (b.current > eqPeaks[i]) { eqPeaks[i] = b.current; eqPeakDecay[i] = 0; }
+    else { eqPeakDecay[i]++; if (eqPeakDecay[i] > 15) eqPeaks[i] = Math.max(3, eqPeaks[i] - 0.8); }
+  });
+  requestAnimationFrame(animateEQ);
+}
+animateEQ();
+
+// ── TICKER ──
+let aiQuoteQueue   = [];
+let lastAiContext  = '';
+let currentNowPlayingTitle  = '';
+let currentNowPlayingArtist = '';
+
+// Banshee-specific fallback quotes — dark, Edinburgh-flavoured
+const FALLBACK_QUOTES = [
+  "WELCOME TO THE LABYRINTH — YOU MAY NEVER LEAVE",
+  "VOTE FOR YOUR TRACK · ONLY THE WORTHY SURVIVE",
+  "THE BANSHEE SCREAMS YOUR NAME — MAKE IT COUNT",
+  "DEEP IN EDINBURGH'S DARKEST DUNGEON · ROCK LIVES",
+  "VOTE NOW · THE LABYRINTH DEMANDS AN OFFERING",
+  "NO.1 TRACK GETS QUEUED · NO.1 FAN GETS A T-SHIRT",
+  "SCAN THE QR · CAST YOUR VOTE · SUMMON YOUR TRACK",
+  "THE WALLS HAVE EARS · THE MUSIC HAS POWER",
+  "EDINBURGH'S MOST HAUNTED ROCK BAR · SINCE 2004",
+  "EVERY VOTE IS A SCREAM INTO THE VOID — KEEP SCREAMING",
+  "TOP OF THE LEADERBOARD · MASTER OF THE LABYRINTH",
+  "REQUEST A TRACK · THE BANSHEE WILL DECIDE",
+  "DARKNESS, ROCK, AND HEAVY METAL · THIS IS YOUR DOMAIN",
+  "VOTE FOR YOUR ANTHEM · THE NIGHT IS YOUNG",
+  "THE LABYRINTH NEVER CLOSES · THE MUSIC NEVER STOPS",
+];
+let fallbackIndex = 0;
+function getNextQuote() {
+  if (aiQuoteQueue.length) return aiQuoteQueue.shift();
+  const q = FALLBACK_QUOTES[fallbackIndex % FALLBACK_QUOTES.length];
+  fallbackIndex++;
+  return q;
+}
+
+async function fetchAIQuotes() {
+  if (!CONFIG.spotify_worker_url) return;
+  try {
+    const ctx = currentNowPlayingTitle
+      ? `Currently playing: "${currentNowPlayingTitle}" by ${currentNowPlayingArtist}.`
+      : 'No track playing yet.';
+    if (ctx === lastAiContext && aiQuoteQueue.length > 2) return;
+    lastAiContext = ctx;
+    const prompt = `You are the ticker display for ROCKBOARD at THE BANSHEE LABYRINTH in Edinburgh — a legendary, atmospheric underground rock bar and labyrinthine pub. ${ctx}
+
+Generate 6 short punchy ticker messages for the display board. Mix between: rock music enthusiasm, Edinburgh/Banshee atmosphere (dark, gothic, underground vibes), and calls to vote/request. Reference the current track/artist if given. Keep each under 80 characters. All caps. Return only the 6 messages, one per line, no numbering or bullets.`;
+    const res = await fetch(CONFIG.spotify_worker_url + '/ai-quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const lines = text.split('\n').map(l=>l.trim().toUpperCase()).filter(l=>l.length>10 && l.length<100);
+    if (lines.length) aiQuoteQueue.push(...lines);
+  } catch(e) { /* silently fail, fallbacks cover it */ }
+}
+
+async function testAIConnection() {
+  if (!CONFIG.spotify_worker_url) return;
+  try {
+    const res = await fetch(CONFIG.spotify_worker_url + '/ping');
+    const d   = await res.json();
+    console.log('BL Worker ping:', d);
+  } catch(e) { console.warn('Worker ping failed:', e); }
+}
+
+let lastTickerFire = Date.now();
+function nextQuote() {
+  const el = document.getElementById('callout-text');
+  el.style.animation = 'none';
+  const quote = getNextQuote();
+  el.textContent = quote;
+  void el.offsetWidth;
+  const duration = Math.max(14, Math.min(26, quote.length * 0.45));
+  el.style.animation = `ticker ${duration}s linear`;
+  lastTickerFire = Date.now();
+  el.addEventListener('animationend', nextQuote, { once: true });
+}
+setInterval(() => { if (Date.now() - lastTickerFire > 35000) nextQuote(); }, 10000);
+
+// YT cache cleanup
+(function clearStaleYTCache() {
+  try {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    Object.keys(localStorage).forEach(k => {
+      if (!k.startsWith('yt_')) return;
+      try { const { ts } = JSON.parse(localStorage.getItem(k)); if (ts < cutoff) localStorage.removeItem(k); }
+      catch(e) { localStorage.removeItem(k); }
+    });
+  } catch(e) {}
+})();
+
+testAIConnection();
+setTimeout(() => { fetchAIQuotes(); setInterval(fetchAIQuotes, 5 * 60 * 1000); }, 8000);
+nextQuote();
+
+// ── ALL-TIME TOP 10 ──
+async function recordPlayedToAllTime(title, artist, thumb) {
+  try {
+    const { getDoc, setDoc: sd, doc: d } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const key = (title + '|||' + artist).replace(/[^a-zA-Z0-9|_\- ]/g,'').substring(0,100);
+    const ref = d(db, C_ALLTIME, key);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const existing = snap.data();
+      await sd(ref, { ...existing, plays:(existing.plays||0)+1, thumb:thumb||existing.thumb });
+    } else {
+      await sd(ref, { title, artist, thumb:thumb||'', plays:1, addedAt:Date.now() });
+    }
+  } catch(e) { console.warn('alltime record error', e); }
+}
+async function loadAllTimeTop10() {
+  try {
+    const { getDocs: gd, collection: col, query: q, orderBy: ob, limit: lim } =
+      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(q(col(db,C_ALLTIME), ob('plays','desc'), lim(10)));
+    const panel = document.getElementById('alltime-panel');
+    const list  = document.getElementById('alltime-list');
+    if (snap.empty) { panel.classList.remove('show'); return; }
+    panel.classList.add('show');
+    list.innerHTML = snap.docs.map((d, i) => {
+      const t = d.data(); const pos = i+1; const isTop = pos===1;
+      return `<div class="at-row${isTop?' at-top':''}">
+        <div class="at-pos">${String(pos).padStart(2,'0')}</div>
+        <div class="at-details"><div class="at-title">${t.title}</div><div class="at-artist">${t.artist}</div></div>
+        <div style="text-align:right;flex-shrink:0"><div class="at-count">${t.plays}</div><div class="at-count-label">PLAYS</div></div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.warn('alltime load error', e); }
+}
+async function confirmResetAllTime() {
+  const pin = prompt('Enter staff PIN to reset all-time board:');
+  if (!pin) return;
+  if (pin !== String(CONFIG.staffPin || '1234')) { alert('Wrong PIN'); return; }
+  if (!confirm('Reset ALL-TIME TOP 10? This cannot be undone.')) return;
+  try {
+    const { getDocs: gd, collection: col, deleteDoc: dd, doc: d } =
+      await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    const snap = await gd(col(db, C_ALLTIME));
+    await Promise.all(snap.docs.map(dc => dd(d(db, C_ALLTIME, dc.id))));
+    document.getElementById('alltime-panel').classList.remove('show');
+  } catch(e) { alert('Reset failed: ' + e.message); }
+}
+loadAllTimeTop10();
+setInterval(loadAllTimeTop10, 60000);
+
+// ── RECENTLY PLAYED CACHE ──
+let recentlyPlayedCache = {};
+async function syncRecentlyPlayed() {
+  try {
+    const snap = await getDocs(collection(db, C_PLAYED));
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    recentlyPlayedCache = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.playedAt > cutoff) {
+        const key = (data.title + '|||' + data.artist).toLowerCase();
+        recentlyPlayedCache[key] = data.playedAt;
+      }
+    });
+  } catch(e) {}
+}
+syncRecentlyPlayed();
+setInterval(syncRecentlyPlayed, 60000);
+
+// ── NOW PLAYING ──
+let nowPlayingThumb = '';
+let nowPlayingTrack = '';
+let trackNumber     = 1;
+
+async function fetchNowPlaying() {
+  if (!CONFIG.spotify_worker_url) return;
+  try {
+    const res  = await fetch(CONFIG.spotify_worker_url + '/nowplaying');
+    const data = await res.json();
+    const isNow  = !!data.playing;
+    const title  = data.name   || '';
+    const artist = data.artist || '';
+    const thumb  = data.image  || '';
+    const trackKey = title + '|||' + artist;
+    currentNowPlayingTitle  = isNow ? title  : '';
+    currentNowPlayingArtist = isNow ? artist : '';
+    document.getElementById('track-name').textContent   = isNow ? title  : '—';
+    document.getElementById('track-artist').textContent = isNow ? artist : 'Nothing playing yet';
+    document.getElementById('status-text').textContent  = isNow ? 'NOW PLAYING' : 'STANDBY';
+    document.getElementById('wc-num').textContent       = String(trackNumber).padStart(3,'0');
+    if (data.progress && data.duration) {
+      document.getElementById('progress-fill').style.width = ((data.progress/data.duration)*100)+'%';
+    }
+    if (!isNow) { hideYouTube(); return; }
+    if (trackKey !== nowPlayingTrack) {
+      nowPlayingTrack = trackKey; trackNumber++;
+      aiQuoteQueue = []; lastAiContext = '';
+      clearTimeout(window._aiTrackChangeTimer);
+      window._aiTrackChangeTimer = setTimeout(fetchAIQuotes, 5000);
+      if (thumb && thumb !== nowPlayingThumb) {
+        const bgNext = document.getElementById('bg-art-next');
+        const bgCurr = document.getElementById('bg-art');
+        bgNext.style.backgroundImage = `url('${thumb}')`;
+        bgNext.classList.add('fade-in');
+        bgCurr.classList.add('fade-out');
+        setTimeout(() => {
+          bgCurr.style.backgroundImage = `url('${thumb}')`;
+          bgCurr.classList.remove('fade-out');
+          bgNext.classList.remove('fade-in');
+          document.getElementById('album-img').src = thumb;
+        }, 2600);
+        nowPlayingThumb = thumb;
+      }
+      if (CONFIG.youtube_key && videoActivated) searchYouTube(title, artist);
+    }
+  } catch(e) { console.warn('Spotify nowplaying error', e); }
+}
+
+// ── ACTIVATE ON FIRST TAP ──
+let videoActivated = false;
+window.activateVideo = function() {
+  if (videoActivated) return;
+  videoActivated = true;
+  const overlay = document.getElementById('activate-overlay');
+  overlay.style.opacity = '0';
+  overlay.style.transition = 'opacity 0.8s ease';
+  setTimeout(() => { overlay.style.display = 'none'; }, 900);
+  if (nowPlayingTrack) {
+    const parts = nowPlayingTrack.split('|||');
+    if (CONFIG.youtube_key) searchYouTube(parts[0], parts[1]);
+  }
+};
+
+// ── YOUTUBE BACKGROUND ──
+let currentVideoId = '';
+async function searchYouTube(title, artist) {
+  try {
+    const cleanTitle = cleanT(title);
+    const cacheKey = 'yt_' + (artist+'|'+cleanTitle).toLowerCase().replace(/[^a-z0-9|]/g,'_').slice(0,80);
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { videoId: cachedId, ts } = JSON.parse(cached);
+      if (Date.now()-ts < 7*24*60*60*1000 && cachedId) {
+        if (cachedId === 'NONE') { hideYouTube(); return; }
+        if (cachedId === currentVideoId) return;
+        currentVideoId = cachedId; loadYouTubeVideo(cachedId); return;
+      }
+    }
+    const searches = [
+      { q:`${artist} ${cleanTitle} official music video`, cat:true },
+      { q:`${artist} ${cleanTitle} official audio`,       cat:true },
+      { q:`${artist} ${cleanTitle} official`,             cat:true },
+      { q:`${artist} ${cleanTitle} live`,                 cat:true },
+      { q:`${artist} ${cleanTitle}`,                      cat:true },
+      { q:`${artist} ${cleanTitle} official music video`, cat:false },
+      { q:`${artist} ${cleanTitle}`,                      cat:false },
+    ];
+    let videoId = null;
+    for (const { q: query, cat } of searches) {
+      try {
+        const catParam = cat ? '&videoCategoryId=10' : '';
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video${catParam}&maxResults=5&key=${CONFIG.youtube_key}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        if (data.error) { hideYouTube(); return; }
+        const items = data.items || [];
+        if (!items.length) continue;
+        const scored = items.map(item => {
+          const t  = (item.snippet.title||'').toLowerCase();
+          const ch = (item.snippet.channelTitle||'').toLowerCase();
+          let score = 0;
+          if (t.includes(cleanTitle.toLowerCase()))  score += 4;
+          if (t.includes(artist.toLowerCase()))      score += 3;
+          if (ch.includes(artist.toLowerCase()))     score += 3;
+          if (/vevo/i.test(ch))                      score += 3;
+          if (/official/i.test(t))                   score += 2;
+          if (/music.?video/i.test(t))               score += 2;
+          if (/audio|lyric/i.test(t))                score += 1;
+          if (/cover|reaction|tutorial|karaoke|how to|ranking|top 10|tribute/i.test(t)) score -= 4;
+          return { item, score };
+        });
+        scored.sort((a,b) => b.score - a.score);
+        const best = scored[0];
+        if (best.score < 4) continue;
+        const candidateId = best.item.id.videoId;
+        try { if (sessionStorage.getItem('yt-blocked-'+candidateId)) continue; } catch(e) {}
+        videoId = candidateId; break;
+      } catch(e) { continue; }
+    }
+    try { localStorage.setItem(cacheKey, JSON.stringify({ videoId: videoId||'NONE', ts:Date.now() })); } catch(e) {}
+    if (!videoId) { hideYouTube(); return; }
+    if (videoId === currentVideoId) return;
+    currentVideoId = videoId;
+    loadYouTubeVideo(videoId);
+  } catch(e) { hideYouTube(); }
+}
+
+window.videoOffset = 0;
+let ytPlayer = null, ytReady = false, pendingVideoId = null, pendingStartSecs = 0, syncInterval = null;
+const ytScript = document.createElement('script');
+ytScript.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytScript);
+window.onYouTubeIframeAPIReady = function() {
+  ytReady = true;
+  ytPlayer = new YT.Player('yt-iframe', {
+    playerVars: { autoplay:1, mute:1, controls:0, showinfo:0, rel:0, modestbranding:1, iv_load_policy:3, disablekb:1, fs:0, playsinline:1, loop:0 },
+    events: {
+      onReady: (e) => {
+        e.target.mute();
+        e.target.setPlaybackQuality('hd720');
+        if (pendingVideoId) { loadVideoAtPosition(pendingVideoId, pendingStartSecs); pendingVideoId = null; }
+      },
+      onStateChange: (e) => {
+        const bgArt = document.getElementById('bg-art');
+        const wrap  = document.getElementById('yt-bg-wrap');
+        if (e.data === YT.PlayerState.PLAYING)    { wrap.classList.add('show'); bgArt.style.opacity='0.15'; }
+        else if (e.data === YT.PlayerState.BUFFERING) { wrap.classList.remove('show'); bgArt.style.opacity='1'; }
+        else if (e.data === YT.PlayerState.ENDED) { ytPlayer.seekTo(2,true); ytPlayer.playVideo(); }
+      },
+      onError: (e) => {
+        if (currentVideoId) { try { sessionStorage.setItem('yt-blocked-'+currentVideoId,'1'); } catch(err){} }
+        hideYouTube();
+      }
+    }
+  });
+};
+function loadVideoAtPosition(videoId, startSecs) {
+  if (!ytPlayer || !ytReady) { pendingVideoId=videoId; pendingStartSecs=startSecs; return; }
+  ytPlayer.loadVideoById({ videoId, startSeconds: Math.max(0,startSecs-1) }); ytPlayer.mute();
+}
+async function getSpotifyProgress() {
+  if (!CONFIG.spotify_worker_url) return 0;
+  try {
+    const res  = await fetch(CONFIG.spotify_worker_url + '/nowplaying');
+    const data = await res.json();
+    if (data.playing && data.progress && data.duration) return Math.floor(data.progress/1000);
+  } catch(e) {}
+  return 0;
+}
+function loadYouTubeVideo(videoId) {
+  const wrap  = document.getElementById('yt-bg-wrap');
+  const label = document.getElementById('yt-label');
+  const bgArt = document.getElementById('bg-art');
+  wrap.classList.remove('show'); bgArt.style.opacity='1'; clearInterval(syncInterval);
+  setTimeout(async () => {
+    const spotifySecs = await getSpotifyProgress();
+    const offset      = window.videoOffset||0;
+    loadVideoAtPosition(videoId, Math.max(0,spotifySecs+offset));
+    label.classList.add('show');
+    syncInterval = setInterval(async () => {
+      if (!ytPlayer||currentVideoId!==videoId) { clearInterval(syncInterval); return; }
+      try {
+        const state = ytPlayer.getPlayerState?.();
+        if (state!==YT.PlayerState.PLAYING) return;
+        const spotifySecs = await getSpotifyProgress();
+        const ytSecs      = ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
+        const targetSecs  = spotifySecs+(window.videoOffset||0);
+        if (Math.abs(targetSecs-ytSecs) > 15) ytPlayer.seekTo(Math.max(0,targetSecs-1),true);
+      } catch(e) {}
+    }, 45000);
+  }, 600);
+}
+function hideYouTube() {
+  document.getElementById('yt-bg-wrap').classList.remove('show');
+  document.getElementById('yt-label').classList.remove('show');
+  document.getElementById('bg-art').style.opacity='1';
+  clearInterval(syncInterval);
+  currentVideoId='';
+  if (ytPlayer?.stopVideo) ytPlayer.stopVideo();
+}
+
+fetchNowPlaying();
+setInterval(fetchNowPlaying, 8000);
+
+// ── KEEP ALIVE ──
+let wakeLock = null;
+async function requestWakeLock() {
+  try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); } } catch(e) {}
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) return;
+  await requestWakeLock();
+  fetchNowPlaying(); loadAllTimeTop10(); fetchAIQuotes();
+  if (typeof startBoardQueueChecker==='function') startBoardQueueChecker();
+  if (nextQueueAt_local) {
+    const remaining = nextQueueAt_local-Date.now();
+    if (remaining>0) {
+      const m=Math.floor(remaining/60000), s=Math.floor((remaining%60000)/1000);
+      const timeEl=document.getElementById('countdown-time');
+      if (timeEl) { timeEl.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; timeEl.classList.toggle('urgent',remaining<30000); }
+    }
+  }
+});
+try {
+  const AudioCtx = window.AudioContext||window.webkitAudioContext;
+  if (AudioCtx) { const ac=new AudioCtx(); const o=ac.createOscillator(); const g=ac.createGain(); g.gain.value=0; o.connect(g); g.connect(ac.destination); o.start(); }
+} catch(e) {}
+
+// ── LEADERBOARD ──
+let tracks   = [];
+let prevRanks = {};
+const CARD_H  = 92; // slightly taller cards in portrait
+
+function renderLeaderboard() {
+  const list   = document.getElementById('tracks-list');
+  const sorted = [...tracks]
+    .filter(t => t.approved)
+    .sort((a,b) => b.uniqueVoters - a.uniqueVoters || (a.addedAt||0)-(b.addedAt||0))
+    .slice(0, 10);
+
+  document.getElementById('wc-total').textContent = sorted.reduce((s,t)=>s+t.uniqueVoters, 0);
+
+  const existingCards = {};
+  list.querySelectorAll('.track-card').forEach(el => { existingCards[el.dataset.id] = el; });
+
+  sorted.forEach((track, idx) => {
+    const top = idx * CARD_H;
+    let card = existingCards[track.id];
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'track-card new-entry';
+      card.dataset.id = track.id;
+      card.style.top  = top + 'px';
+      card.style.opacity = '0';
+      setTimeout(() => { card.style.opacity = '1'; }, 50);
+      list.appendChild(card);
+    }
+    const prevRank   = prevRanks[track.id];
+    const rankChange = prevRank!==undefined ? prevRank-idx : 0;
+    const changeIcon = rankChange>0?'▲':rankChange<0?'▼':'—';
+    const changeClass = rankChange>0?'up':rankChange<0?'down':'same';
+    const cooldownKey = (track.title+'|||'+track.artist).toLowerCase();
+    const playedAt   = recentlyPlayedCache[cooldownKey];
+    const onCooldown = !!playedAt;
+    const minsLeft   = onCooldown ? Math.ceil((playedAt+3600000-Date.now())/60000) : 0;
+    const cooldownHtml = onCooldown ? `<div class="cooldown-badge">⏳ BACK IN ${minsLeft}MIN</div>` : '';
+    card.className = 'track-card'+(idx===0&&!onCooldown?' top-card':'')+(rankChange>0?' rising':'')+(onCooldown?' on-cooldown':'');
+    card.style.top  = top+'px';
+    const artUrl    = track.spotifyImage || '';
+    const thumbHtml = artUrl
+      ? `<img class="track-thumb" src="${artUrl}" onerror="this.parentElement.innerHTML='<div class=\\'track-thumb\\' style=\\'background:#120028;display:flex;align-items:center;justify-content:center;font-size:20px;\\'>🎵</div>'">`
+      : `<div class="track-thumb" style="background:#120028;display:flex;align-items:center;justify-content:center;font-size:20px;">🎵</div>`;
+    card.innerHTML = `
+      <div class="track-rank">${String(idx+1).padStart(2,'0')}</div>
+      ${thumbHtml}
+      <div class="track-details">
+        <div class="track-title">${track.title}</div>
+        <div class="track-meta">
+          <span class="track-artist-name">${track.artist}</span>
+          <span style="color:rgba(102,0,204,0.5);margin:0 4px;font-size:12px">·</span>
+          <span class="track-requester">${track.requester}</span>
+        </div>
+      </div>
+      <div class="track-votes">
+        <div class="vote-count">${track.uniqueVoters}</div>
+        <div class="vote-label">VOTES</div>
+      </div>
+      <div class="rank-change ${changeClass}">${changeIcon}</div>
+      ${cooldownHtml}`;
+    if (!artUrl && CONFIG.lastfm_key) {
+      const cacheKey = track.title+'|||'+track.artist;
+      if (!window._artCache) window._artCache = {};
+      if (window._artCache[cacheKey]) {
+        const thumb = card.querySelector('.track-thumb');
+        if (thumb?.tagName==='DIV') { thumb.style.backgroundImage=`url('${window._artCache[cacheKey]}')`; thumb.style.backgroundSize='cover'; thumb.style.backgroundPosition='center'; }
+      } else {
+        fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&artist=${encodeURIComponent(track.artist)}&track=${encodeURIComponent(track.title)}&api_key=${CONFIG.lastfm_key}&format=json`)
+          .then(r=>r.json()).then(d=>{
+            const url = d.track?.album?.image?.find(i=>i.size==='large')?.['#text']||'';
+            if (url&&!url.includes('noimage')) {
+              window._artCache[cacheKey]=url;
+              const c=document.querySelector(`.track-card[data-id="${track.id}"]`);
+              if (c) { const th=c.querySelector('.track-thumb'); if (th?.tagName==='DIV') { th.style.backgroundImage=`url('${url}')`; th.style.backgroundSize='cover'; th.style.backgroundPosition='center'; } }
+            }
+          }).catch(()=>{});
+      }
+    }
+    prevRanks[track.id]=idx;
+    delete existingCards[track.id];
+  });
+  Object.values(existingCards).forEach(el => { el.style.opacity='0'; setTimeout(()=>el.remove(),400); });
+}
+
+// ── FIREBASE LIVE LISTENER ──
+try {
+  const q = query(collection(db, C_TRACKS), orderBy('uniqueVoters','desc'));
+  onSnapshot(q, (snapshot) => {
+    tracks = snapshot.docs.map(d => ({ id:d.id, ...d.data() }));
+    if (window.boardAutoApprove) {
+      tracks.filter(t=>!t.approved).forEach(t => updateDoc(doc(db,C_TRACKS,t.id),{approved:true}).catch(()=>{}));
+    }
+    boardTracks = tracks;
+    renderLeaderboard();
+    statusEl.textContent = '● LIVE';
+    statusEl.className   = 'ok';
+    setTimeout(()=>{ statusEl.style.opacity='0'; }, 3000);
+  }, (err) => {
+    console.error('Firestore error', err);
+    statusEl.textContent = '● DB ERROR'; statusEl.className = 'err';
+  });
+} catch(e) { statusEl.textContent='● OFFLINE'; statusEl.className='err'; }
+
+// ── WINNER REVEAL ──
+window.showWinner = function() {
+  const sorted = [...tracks].filter(t=>t.approved).sort((a,b)=>b.uniqueVoters-a.uniqueVoters||(a.addedAt||0)-(b.addedAt||0));
+  if (!sorted.length) return;
+  const w = sorted[0];
+  document.getElementById('winner-track').textContent       = w.title;
+  document.getElementById('winner-artist-line').textContent = w.artist;
+  document.getElementById('winner-votes').textContent       = `${w.uniqueVoters} UNIQUE VOTES`;
+  const winnerQuotes = [
+    `${w.requester} has conquered the Labyrinth. Collect your t-shirt at the bar.`,
+    `${w.requester} — the Banshee approves of your taste. T-shirt incoming.`,
+    `${w.requester} wins the night. The Labyrinth bows to you.`,
+    `${w.requester}, you ARE the Banshee tonight. T-shirt at the bar.`,
+    `${w.requester} called it. The dungeon agreed. Well earned.`,
+  ];
+  document.getElementById('winner-callout').textContent = winnerQuotes[Math.floor(Math.random()*winnerQuotes.length)];
+  document.getElementById('winner-overlay').classList.add('show');
+  launchConfetti();
+};
+window.closeWinner = function() { document.getElementById('winner-overlay').classList.remove('show'); };
+
+function launchConfetti() {
+  // Banshee confetti: purples + magentas
+  const colors = ['#6600cc','#ff00ff','#8800ff','#cc00aa','#f0eaff','#FFB347'];
+  for (let i=0; i<80; i++) {
+    setTimeout(()=>{
+      const c=document.createElement('div');
+      c.className='confetti-piece';
+      c.style.left=Math.random()*100+'vw';
+      c.style.top='-20px';
+      c.style.background=colors[Math.floor(Math.random()*colors.length)];
+      c.style.animationDelay=(Math.random()*2)+'s';
+      c.style.animationDuration=(2+Math.random()*2)+'s';
+      document.body.appendChild(c);
+      setTimeout(()=>c.remove(),4500);
+    }, i*30);
+  }
+}
+</script>
+</body>
+</html>
