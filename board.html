@@ -712,6 +712,15 @@ const CONFIG = {
 };
 
 // ── SESSION TOKEN (QR) ──
+// Ported from BR's initSession/scheduleQRRefresh/buildQR (the real
+// working version — the old BL version here had two real bugs: it built
+// the QR with a hardcoded domain instead of window.location.href (lesson
+// #4 — a site can have more than one working domain, so hardcoding one
+// risks pointing the QR somewhere that isn't live yet), AND it used a
+// "?v=" query param while index.html's validateSession reads "?s=" — so
+// the QR as it stood would never have let a customer in. It also never
+// refreshed itself, so the screen would show a dead QR after the first
+// 2-hour session expired until someone manually reloaded the page.
 const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
 
 function generateToken() {
@@ -736,15 +745,42 @@ async function initSession() {
     expiry = now + SESSION_DURATION_MS;
     await setDoc(sessionRef, { token, expiry, createdAt: now });
   }
-  // Build QR URL — PLACEHOLDER: update to actual Banshee domain once deployed
-  const qrUrl = `https://rockboardbl.hauntedpubs.co.uk/?v=${token}`;
-  new QRCode(document.getElementById('qr-canvas'), {
-    text: qrUrl,
-    width: 110, height: 110,
-    colorDark: '#f0eaff',
-    colorLight: '#07000f',
-    correctLevel: QRCode.CorrectLevel.M,
-  });
+  buildQR(token);
+  scheduleQRRefresh(expiry, setDoc, sessionRef);
+}
+
+function scheduleQRRefresh(expiry, setDoc, sessionRef) {
+  const msLeft = Math.max(expiry - Date.now(), 0);
+  setTimeout(async () => {
+    const newToken  = generateToken();
+    const newExpiry = Date.now() + SESSION_DURATION_MS;
+    await setDoc(sessionRef, { token: newToken, expiry: newExpiry, createdAt: Date.now() });
+    buildQR(newToken);
+    // Runs indefinitely throughout the night, same as BR
+    scheduleQRRefresh(newExpiry, setDoc, sessionRef);
+  }, msLeft);
+}
+
+function buildQR(token) {
+  // Built from window.location.href, not a hardcoded domain — whatever
+  // address is actually loaded on the physical screen is the one that
+  // matters (per lesson #4), same as BR.
+  const base = window.location.href.replace(/\/board\.html.*$/, '/');
+  const qrUrl = base + '?s=' + token;
+  const container = document.getElementById('qr-canvas');
+  if (!container) return;
+  container.innerHTML = '';
+  const tryGen = () => {
+    if (typeof QRCode === 'undefined') { setTimeout(tryGen, 300); return; }
+    new QRCode(container, {
+      text: qrUrl,
+      width: 110, height: 110,          // kept at BL's portrait footer size, not BR's 320
+      colorDark: '#f0eaff',
+      colorLight: '#07000f',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  };
+  tryGen();
 }
 
 // ── FIREBASE INIT ──
@@ -761,6 +797,12 @@ initSession();
 
 const statusEl = document.getElementById('firebase-status');
 
+// Minimum minutes between auto-queue rounds — must match staff.html's
+// MIN_AUTOQUEUE_MINS. Enforced here too since this file reads
+// autoQueueMins straight from Firestore, which could still hold an old
+// sub-minimum value from before this limit existed. Ported from BR.
+const MIN_AUTOQUEUE_MINS = 5;
+
 // ── APPLY VENUE CONFIG TO DOM ──
 document.getElementById('venue-name').textContent = CONFIG.venueName;
 document.getElementById('venue-sub').textContent  = CONFIG.venueSub;
@@ -769,7 +811,7 @@ if (!CONFIG.tshirtMode) document.getElementById('tshirt-badge').classList.remove
 
 // ── SETTINGS LISTENER (tshirt toggle, autoqueue, countdown) ──
 let countdownTimer    = null;
-let totalQueueMs      = 2 * 60 * 1000;
+let totalQueueMs      = MIN_AUTOQUEUE_MINS * 60 * 1000;
 let nextQueueAt_local = null;
 
 onSnapshot(doc(db, C_SETTINGS, 'venue'), (snap) => {
@@ -787,7 +829,7 @@ onSnapshot(doc(db, C_SETTINGS, 'venue'), (snap) => {
 
   if (typeof data.nextQueueAt !== 'undefined') nextQueueAt_local = data.nextQueueAt;
 
-  const mins = data.autoQueueMins || 2;
+  const mins = Math.max(MIN_AUTOQUEUE_MINS, data.autoQueueMins || MIN_AUTOQUEUE_MINS);
   if (data.autoQueue && !boardAutoQueueOn) {
     boardAutoQueueOn   = true;
     boardAutoQueueMins = mins;
@@ -802,7 +844,7 @@ onSnapshot(doc(db, C_SETTINGS, 'venue'), (snap) => {
 
   const countdown = document.getElementById('queue-countdown');
   if (data.autoQueue && data.nextQueueAt) {
-    totalQueueMs = (data.autoQueueMins || 2) * 60 * 1000;
+    totalQueueMs = Math.max(MIN_AUTOQUEUE_MINS, data.autoQueueMins || MIN_AUTOQUEUE_MINS) * 60 * 1000;
     countdown.classList.add('show');
     clearInterval(countdownTimer);
     countdownTimer = setInterval(() => {
@@ -832,7 +874,7 @@ onSnapshot(doc(db, C_SETTINGS, 'venue'), (snap) => {
 // ── AUTO-QUEUE ENGINE ──
 let boardTracks        = [];
 let boardAutoQueueOn   = false;
-let boardAutoQueueMins = 2;
+let boardAutoQueueMins = MIN_AUTOQUEUE_MINS;
 let boardQueueChecker  = null;
 let boardFiring        = false;
 
@@ -863,6 +905,23 @@ function cleanT(t) {
           .trim() || t.trim();
 }
 
+// Always writes a fresh nextQueueAt, whether or not this round actually
+// found and queued a track. Without this, every early-return path below
+// (no approved tracks, no eligible track, Spotify search failed, Spotify
+// queue call failed) left nextQueueAt stuck in the past — the countdown
+// would freeze at 00:00 and the checker would stop re-firing entirely,
+// since it only re-triggers when nextQueueAt_local is set. Ported from BR,
+// where this was a real bug fixed after being found live.
+async function scheduleNextAutoQueue() {
+  const nextAt = Date.now() + (boardAutoQueueMins * 60 * 1000);
+  nextQueueAt_local = nextAt;
+  try {
+    await updateDoc(doc(db, C_SETTINGS, 'venue'), { nextQueueAt: nextAt });
+  } catch(e) {
+    console.warn('Failed to schedule next auto-queue round', e);
+  }
+}
+
 async function boardRunAutoQueue() {
   if (boardFiring) return;
   boardFiring = true;
@@ -871,9 +930,9 @@ async function boardRunAutoQueue() {
     const approved = [...boardTracks]
       .filter(t => t.approved && !t.spotifyQueued)
       .sort((a,b) => b.uniqueVoters - a.uniqueVoters || (a.addedAt||0) - (b.addedAt||0));
-    if (!approved.length) { boardFiring = false; return; }
+    if (!approved.length) { await scheduleNextAutoQueue(); boardFiring = false; return; }
     const top = approved.find(t => !recentlyPlayed.includes((t.title+'|||'+t.artist).toLowerCase()));
-    if (!top) { boardFiring = false; return; }
+    if (!top) { await scheduleNextAutoQueue(); boardFiring = false; return; }
     const ct = cleanT(top.title);
     const ca = top.artist.replace(/\s*feat\?.*/i,'').trim() || top.artist;
     let found = null;
@@ -881,13 +940,11 @@ async function boardRunAutoQueue() {
       found = await boardSpotifyCall('/search?track='+encodeURIComponent(t)+(a?'&artist='+encodeURIComponent(a):''));
       if (found?.uri) break;
     }
-    if (!found?.uri) { boardFiring = false; return; }
+    if (!found?.uri) { await scheduleNextAutoQueue(); boardFiring = false; return; }
     const result = await boardSpotifyCall('/queue', 'POST', { uri: found.uri });
     if (result?.ok) {
       await updateDoc(doc(db, C_TRACKS, top.id), { spotifyQueued: true, spotifyUri: found.uri, queuedAt: Date.now() });
-      const nextAt = Date.now() + (boardAutoQueueMins * 60 * 1000);
-      nextQueueAt_local = nextAt;
-      await updateDoc(doc(db, C_SETTINGS, 'venue'), { nextQueueAt: nextAt });
+      await scheduleNextAutoQueue();
       setTimeout(async () => {
         try {
           await setDoc(doc(db, C_PLAYED, top.id), { title:top.title, artist:top.artist, playedAt:Date.now(), spotifyUri:found.uri });
@@ -896,8 +953,15 @@ async function boardRunAutoQueue() {
           loadAllTimeTop10();
         } catch(e) {}
       }, 30000);
+    } else {
+      // Spotify /queue call itself failed — still restart the timer so
+      // the next round can try again rather than leaving the countdown stuck.
+      await scheduleNextAutoQueue();
     }
-  } catch(e) { console.warn('Auto-queue error', e); }
+  } catch(e) {
+    console.warn('Auto-queue error', e);
+    await scheduleNextAutoQueue();
+  }
   boardFiring = false;
 }
 
@@ -956,9 +1020,114 @@ function animateEQ() {
 }
 animateEQ();
 
+// ── TRACK ENRICHMENT ENGINE ──
+// Pulls artist/track data from Last.fm, MusicBrainz & Wikipedia so the AI
+// ticker prompt below can be grounded in real facts instead of guessing.
+// Ported from BR unchanged — venue-agnostic, only needs CONFIG.lastfm_key.
+let trackFactCache = {}; // cache by "artist|track"
+
+async function enrichTrackData(artist, track) {
+  const cacheKey = `${artist}|${track}`;
+  if (trackFactCache[cacheKey]) return trackFactCache[cacheKey];
+
+  const facts = {
+    artist, track,
+    listeners: null, playcount: null, tags: [],
+    artistBio: null, similarArtists: [],
+    wikiSummary: null, mbInfo: null,
+    members: [], formed: null, origin: null,
+  };
+
+  try {
+    // 1. Last.fm — track info (listeners, tags, wiki)
+    const lfTrack = await fetch(
+      `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(track)}&api_key=${CONFIG.lastfm_key}&format=json`
+    ).then(r=>r.json()).catch(()=>({}));
+
+    if (lfTrack.track) {
+      facts.listeners  = parseInt(lfTrack.track.listeners || 0).toLocaleString();
+      facts.playcount  = parseInt(lfTrack.track.playcount || 0).toLocaleString();
+      facts.tags       = (lfTrack.track.toptags?.tag || []).slice(0,5).map(t=>t.name);
+      facts.albumName  = lfTrack.track.album?.title || null;
+      facts.trackWiki  = lfTrack.track.wiki?.summary
+        ?.replace(/<[^>]+>/g,'')
+        ?.replace(/\s+/g,' ')
+        ?.replace(/Read more on Last\.fm\.?/gi,'')
+        ?.trim()
+        ?.substring(0, 400) || null;
+      facts.duration   = lfTrack.track.duration
+        ? Math.floor(parseInt(lfTrack.track.duration)/60) + ' min ' + (parseInt(lfTrack.track.duration)%60) + ' sec'
+        : null;
+    }
+
+    // 2. Last.fm — artist info (bio, similar, listeners)
+    const lfArtist = await fetch(
+      `https://ws.audioscrobbler.com/2.0/?method=artist.getInfo&artist=${encodeURIComponent(artist)}&api_key=${CONFIG.lastfm_key}&format=json`
+    ).then(r=>r.json()).catch(()=>({}));
+
+    if (lfArtist.artist) {
+      facts.artistListeners = parseInt(lfArtist.artist.stats?.listeners || 0).toLocaleString();
+      facts.artistPlaycount = parseInt(lfArtist.artist.stats?.playcount || 0).toLocaleString();
+      facts.similarArtists  = (lfArtist.artist.similar?.artist || []).slice(0,5).map(a=>a.name);
+      facts.artistBio = lfArtist.artist.bio?.summary
+        ?.replace(/<[^>]+>/g,'')
+        ?.replace(/\s+/g,' ')
+        ?.replace(/Read more on Last\.fm\.?/gi,'')
+        ?.trim()
+        ?.substring(0,500) || null;
+    }
+
+    // 3. MusicBrainz — band members, origin, formed date
+    const mbSearch = await fetch(
+      `https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(artist)}&fmt=json&limit=1`,
+      { headers: { 'User-Agent': 'RockBoard/1.0 (eddrock79@hotmail.com)' } }
+    ).then(r=>r.json()).catch(()=>({}));
+
+    const mbArtist = mbSearch.artists?.[0];
+    if (mbArtist) {
+      facts.formed = mbArtist['life-span']?.begin?.substring(0,4) || null;
+      facts.origin = mbArtist.area?.name || mbArtist['begin-area']?.name || null;
+      facts.mbType = mbArtist.type || null;
+
+      if (mbArtist.id) {
+        const mbDetail = await fetch(
+          `https://musicbrainz.org/ws/2/artist/${mbArtist.id}?inc=artist-rels&fmt=json`,
+          { headers: { 'User-Agent': 'RockBoard/1.0 (eddrock79@hotmail.com)' } }
+        ).then(r=>r.json()).catch(()=>({}));
+
+        const memberRels = (mbDetail.relations || [])
+          .filter(r => r.type === 'member of band' && r.direction === 'backward')
+          .slice(0,5)
+          .map(r => r.artist?.name)
+          .filter(Boolean);
+        facts.members = memberRels;
+      }
+    }
+
+    // 4. Wikipedia — quick summary for chart facts
+    const wikiSearch = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(artist.replace(/ /g,'_'))}`,
+      { headers: { 'User-Agent': 'RockBoard/1.0' } }
+    ).then(r=>r.json()).catch(()=>({}));
+
+    if (wikiSearch.extract) {
+      facts.wikiArtist = wikiSearch.extract.substring(0,400);
+    }
+
+  } catch(e) {
+    console.warn('Enrichment partial error', e);
+  }
+
+  trackFactCache[cacheKey] = facts;
+  return facts;
+}
+
 // ── TICKER ──
 let aiQuoteQueue   = [];
+let aiQuoteFetching = false;
 let lastAiContext  = '';
+let currentTrackFacts = null;
+let aiConnected = false;
 let currentNowPlayingTitle  = '';
 let currentNowPlayingArtist = '';
 
@@ -980,45 +1149,130 @@ const FALLBACK_QUOTES = [
   "VOTE FOR YOUR ANTHEM · THE NIGHT IS YOUNG",
   "THE LABYRINTH NEVER CLOSES · THE MUSIC NEVER STOPS",
 ];
+// Shuffle once on load so order varies each session — ported from BR
+const SHUFFLED_FALLBACKS = [...FALLBACK_QUOTES].sort(() => Math.random() - 0.5);
 let fallbackIndex = 0;
 function getNextQuote() {
+  // Proactively refill when getting low — don't wait until empty (ported from BR)
+  if (aiQuoteQueue.length < 3) fetchAIQuotes();
   if (aiQuoteQueue.length) return aiQuoteQueue.shift();
-  const q = FALLBACK_QUOTES[fallbackIndex % FALLBACK_QUOTES.length];
+  const q = SHUFFLED_FALLBACKS[fallbackIndex % SHUFFLED_FALLBACKS.length];
   fallbackIndex++;
   return q;
 }
 
 async function fetchAIQuotes() {
   if (!CONFIG.spotify_worker_url) return;
+  if (aiQuoteFetching) return;
+  // Don't burn API credits when nothing is playing yet
+  if (!currentNowPlayingTitle && aiQuoteQueue.length > 0) return;
+  aiQuoteFetching = true;
   try {
-    const ctx = currentNowPlayingTitle
-      ? `Currently playing: "${currentNowPlayingTitle}" by ${currentNowPlayingArtist}.`
-      : 'No track playing yet.';
-    if (ctx === lastAiContext && aiQuoteQueue.length > 2) return;
-    lastAiContext = ctx;
-    const prompt = `You are the ticker display for ROCKBOARD at THE BANSHEE LABYRINTH in Edinburgh — a legendary, atmospheric underground rock bar and labyrinthine pub. ${ctx}
+    const safeTracks = (typeof tracks !== 'undefined' && Array.isArray(tracks)) ? tracks : [];
+    const topTrack    = [...safeTracks].filter(t=>t.approved).sort((a,b)=>b.uniqueVoters-a.uniqueVoters||(a.addedAt||0)-(b.addedAt||0))[0];
+    const totalVotes  = safeTracks.filter(t=>t.approved).reduce((s,t)=>s+t.uniqueVoters,0);
+    const nowPlaying  = currentNowPlayingTitle  || document.getElementById('track-name').textContent;
+    const nowArtist   = currentNowPlayingArtist || document.getElementById('track-artist').textContent;
+    const trackCount  = safeTracks.filter(t=>t.approved).length;
 
-Generate 6 short punchy ticker messages for the display board. Mix between: rock music enthusiasm, Edinburgh/Banshee atmosphere (dark, gothic, underground vibes), and calls to vote/request. Reference the current track/artist if given. Keep each under 80 characters. All caps. Return only the 6 messages, one per line, no numbering or bullets.`;
-    const res = await fetch(CONFIG.spotify_worker_url + '/ai-quotes', {
+    const context = `${nowPlaying}|${topTrack?.title}|${totalVotes}|${trackCount}`;
+    if (context === lastAiContext && aiQuoteQueue.length > 3) { aiQuoteFetching = false; return; }
+    lastAiContext = context;
+
+    // Enrich current track and No.1 requested track in the background
+    let facts = null;
+    if (nowArtist && nowArtist !== '—' && nowArtist !== 'Loading...' && nowArtist !== 'Nothing playing yet') {
+      facts = await enrichTrackData(nowArtist, nowPlaying);
+      currentTrackFacts = facts;
+    }
+    let top1Facts = null;
+    if (topTrack) {
+      top1Facts = await enrichTrackData(topTrack.artist, topTrack.title);
+    }
+
+    const factLines = [];
+    if (facts) {
+      if (facts.albumName)       factLines.push(`Album: "${facts.albumName}"`);
+      if (facts.trackWiki)       factLines.push(`Track: ${facts.trackWiki.substring(0,120)}`);
+      if (facts.formed && facts.origin) factLines.push(`${nowArtist}: ${facts.origin}, ${facts.formed}`);
+      else if (facts.formed)     factLines.push(`${nowArtist} formed ${facts.formed}`);
+      else if (facts.origin)     factLines.push(`${nowArtist} from ${facts.origin}`);
+      if (facts.members?.length) factLines.push(`Members: ${facts.members.slice(0,4).join(', ')}`);
+      if (facts.tags?.length)    factLines.push(`Genre: ${facts.tags.slice(0,3).join(', ')}`);
+      if (facts.artistBio)       factLines.push(`Bio: ${facts.artistBio.substring(0,150)}`);
+      if (facts.wikiArtist)      factLines.push(`Wiki: ${facts.wikiArtist.substring(0,150)}`);
+    }
+    if (top1Facts) {
+      if (top1Facts.listeners)   factLines.push(`No.1 requested "${topTrack.title}" has ${top1Facts.listeners} Last.fm listeners`);
+      if (top1Facts.albumName)   factLines.push(`"${topTrack.title}" is from "${top1Facts.albumName}"`);
+      if (top1Facts.trackWiki)   factLines.push(`About "${topTrack.title}": ${top1Facts.trackWiki}`);
+      if (top1Facts.formed && top1Facts.origin) factLines.push(`${topTrack.artist} from ${top1Facts.origin}, formed ${top1Facts.formed}`);
+    }
+
+    // Prompt kept in BL's own voice (dark, gothic, Edinburgh underground,
+    // all-caps ticker style) rather than switching to BR's Black Rose
+    // wording — same JSON structured-output technique, different venue.
+    const prompt = `ROCKBOARD ticker — THE BANSHEE LABYRINTH, a legendary underground rock bar in Edinburgh's Old Town vaults. Return ONLY a JSON array of 6 strings, ALL CAPS, max 12 words each.
+
+NOW PLAYING: "${nowPlaying}" by ${nowArtist}
+NO.1 REQUESTED: ${topTrack ? '"' + topTrack.title + '" by ' + topTrack.artist + ' (' + topTrack.uniqueVoters + ' votes)' : 'none yet'}
+VOTES TONIGHT: ${totalVotes} across ${trackCount} tracks
+FACTS: ${factLines.length ? factLines.slice(0,6).join(' | ') : 'use general knowledge'}
+
+Write: 2 surprising facts about now playing, 1 board commentary, 1 dark/gothic Edinburgh-Banshee-Labyrinth atmosphere line, 1 No.1 track fact, 1 vote CTA.
+Style: dry, atmospheric, haunted-pub wit. No exclamation marks.
+Example: ["NEVERMIND OUTSOLD MICHAEL JACKSON THE WEEK IT DROPPED"]`;
+
+    const response = await fetch(CONFIG.spotify_worker_url + '/ai-quotes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt })
     });
-    if (!res.ok) return;
-    const data = await res.json();
+
+    const data = await response.json();
+    if (data.error) {
+      console.error('🔴 AI quotes worker error:', data.error);
+      if (typeof data.error === 'string' && (data.error.includes('credit') || data.error.includes('billing') || data.error.includes('balance'))) {
+        console.error('💳 Anthropic credit depleted — AI ticker paused. Top up at console.anthropic.com');
+        aiQuoteFetching = false;
+        return; // don't retry — fallbacks cover it until credits are topped up
+      }
+      aiQuoteFetching = false; return;
+    }
     const text = data.content?.[0]?.text || '';
-    const lines = text.split('\n').map(l=>l.trim().toUpperCase()).filter(l=>l.length>10 && l.length<100);
-    if (lines.length) aiQuoteQueue.push(...lines);
-  } catch(e) { /* silently fail, fallbacks cover it */ }
+    if (!text) { aiQuoteFetching = false; return; }
+    let quotes = null;
+    try {
+      const cleaned = text.replace(/```json/g,'').replace(/```/g,'').trim();
+      const start = cleaned.indexOf('['), end = cleaned.lastIndexOf(']');
+      if (start !== -1 && end !== -1) quotes = JSON.parse(cleaned.substring(start, end+1));
+    } catch(parseErr) {
+      console.warn('⚠ Ticker JSON parse failed:', parseErr.message);
+    }
+    if (Array.isArray(quotes) && quotes.length > 0) {
+      aiConnected = true;
+      const valid = quotes.filter(q => typeof q === 'string' && q.length > 0).map(q => q.toUpperCase());
+      aiQuoteQueue.push(...valid);
+      if (aiQuoteQueue.length > 40) aiQuoteQueue = aiQuoteQueue.slice(-25);
+    }
+  } catch(e) {
+    console.error('🔴 AI quotes fetch error:', e.message);
+  }
+  aiQuoteFetching = false;
 }
 
 async function testAIConnection() {
   if (!CONFIG.spotify_worker_url) return;
   try {
     const res = await fetch(CONFIG.spotify_worker_url + '/ping');
-    const d   = await res.json();
-    console.log('BL Worker ping:', d);
-  } catch(e) { console.warn('Worker ping failed:', e); }
+    const data = await res.json();
+    if (!data.ok) { console.error('🔴 Worker unreachable — check Cloudflare deployment'); return; }
+    if (!data.hasApiKey) { console.error('🔴 ANTHROPIC_API_KEY missing from worker — add it in Cloudflare → Workers → rockboard-bl → Settings → Variables'); return; }
+    console.log('✅ Worker online, API key present — AI ticker ready');
+    fetchAIQuotes();
+  } catch(e) {
+    console.error('🔴 Worker connection failed:', e.message, '— Is rockboard-bl deployed? Check dash.cloudflare.com → Workers → Deployments');
+  }
 }
 
 let lastTickerFire = Date.now();

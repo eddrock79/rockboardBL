@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- rockboardBR: unchanged, unaffected by tonight's issue ---
+    match /br_tracks/{trackId} {
+      allow read, write: if true;
+    }
+    match /br_played/{playedId} {
+      allow read, write: if true;
+    }
+    match /br_settings/{settingId} {
+      allow read, write: if true;
+    }
+    match /br_alltime/{entryId} {
+      allow read, write: if true;
+    }
+
+    // --- rockboardBL: added when porting BR's working setup to BL ---
+    // Same pattern as br_* above. {document=**} used from the start
+    // per lesson #2 — br_tracks etc. above use single-segment match
+    // because they're confirmed flat, but bl_settings holds the
+    // session doc (used for the QR token) as a nested value, so the
+    // recursive wildcard is safer here regardless.
+    match /bl_tracks/{document=**} {
+      allow read, write: if true;
+    }
+    match /bl_played/{document=**} {
+      allow read, write: if true;
+    }
+    match /bl_settings/{document=**} {
+      allow read, write: if true;
+    }
+    match /bl_alltime/{document=**} {
+      allow read, write: if true;
+    }
+
+    // --- shared across venues ---
+    match /banned/{bannedId} {
+      allow read, write: if true;
+    }
+
+    // --- Banshee / Black Rose ordering apps: broadened to cover
+    // subcollections too (e.g. per-item status under an order),
+    // matching the original wildcard's full recursive coverage ---
+    match /banshee/{document=**} {
+      allow read, write: if true;
+    }
+    match /banshee-orders/{document=**} {
+      allow read, write: if true;
+    }
+    match /blackrose/{document=**} {
+      allow read, write: if true;
+    }
+    match /blackrose-orders/{document=**} {
+      allow read, write: if true;
+    }
+
+    // --- rockboard monetization data: still locked down, unaffected ---
+    match /br_entitlements/{deviceId} {
+      allow read, write: if false;
+    }
+    match /br_purchases/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // --- rockboardBL monetization data: same lockdown as BR.
+    // These are written ONLY by the rockboard-bl Worker via its
+    // Firebase service-account credentials, which bypass these rules
+    // entirely — so "if false" here is correct, not a bug: it blocks
+    // the browser/client from ever writing or reading these directly.
+    match /bl_entitlements/{deviceId} {
+      allow read, write: if false;
+    }
+    match /bl_purchases/{sessionId} {
+      allow read, write: if false;
+    }
+  }
+}

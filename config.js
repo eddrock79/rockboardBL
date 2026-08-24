@@ -11,7 +11,7 @@ const VENUE_CONFIG = {
   accent:       "#6600cc",          // Banshee deep purple
   accentAlt:    "#ff00ff",          // Neon magenta highlight
   accentGlow:   "#8800ff",          // Purple glow
-  logo:         "assets/banshee-logo.png",  // ← PLACEHOLDER: add Banshee logo PNG
+  logo:         "assets/banshee-logo.png",  // real logo already committed, not a placeholder
 
   // ── LAST.FM (Now Playing display) ────────────────────────
   // PLACEHOLDER: Create/provide Last.fm account for Banshee
@@ -29,8 +29,15 @@ const VENUE_CONFIG = {
   spotify_playlist_id:   "BANSHEE_SPOTIFY_PLAYLIST_ID",                 // ← TO FILL
 
   // ── VOTING RULES ─────────────────────────────────────────
-  maxRequestsPerHour: 40,
-  maxVotesPerHour:   100,
+  // NOTE: these two are documentation only — index.html and staff.html
+  // each hardcode their own copy inline rather than reading VENUE_CONFIG
+  // (same architecture as BR itself, not a BL-specific bug — see the
+  // maxRequestsPerHour/maxVotesPerHour values directly in index.html's
+  // CONFIG block if you need to change the real enforced numbers).
+  // Set to match BR's real live values: 1 free request, 2 free votes,
+  // then Stripe top-ups take over.
+  maxRequestsPerHour: 1,
+  maxVotesPerHour:    2,
   maxLeaderboard:     10,
 
   // ── T-SHIRT COMPETITION ──────────────────────────────────

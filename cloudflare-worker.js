@@ -2,18 +2,228 @@
 //  ROCKBOARD CLOUDFLARE WORKER — The Banshee Labyrinth (BL)
 //  Deploy as: rockboard-bl (eddrock79.workers.dev)
 //
-//  Environment variables to set in Cloudflare Dashboard:
-//    SPOTIFY_CLIENT_ID      ← PLACEHOLDER: Banshee Spotify app client ID
-//    SPOTIFY_CLIENT_SECRET  ← PLACEHOLDER: Banshee Spotify app client secret
-//    SPOTIFY_REFRESH_TOKEN  ← PLACEHOLDER: generated via OAuth flow
-//    SPOTIFY_PLAYLIST_ID    ← PLACEHOLDER: Banshee queue playlist ID
-//    ANTHROPIC_API_KEY      ← same key as BR (already have this)
+//  Ported line-for-line from the real LIVE rockboard-br worker
+//  (pulled from Cloudflare's Edit Code view, not the GitHub repo —
+//  the repo copy was missing the entire Stripe backend). Only the
+//  Firestore collection names (br_ → bl_) and a couple of comments
+//  were changed. Everything else — Spotify search/queue logic,
+//  Stripe checkout/webhook, signature verification, service-account
+//  auth — is copied as-is because it's tested and known to work.
+//
+//  Environment variables to set in Cloudflare Dashboard
+//  (Settings → Variables) — ALL of these are BL-specific and need
+//  their own values, even where BR and BL share other infra:
+//    SPOTIFY_CLIENT_ID       ← Banshee Spotify app client ID
+//    SPOTIFY_CLIENT_SECRET   ← Banshee Spotify app client secret
+//    SPOTIFY_REFRESH_TOKEN   ← generated via OAuth flow (Banshee acct)
+//    SPOTIFY_PLAYLIST_ID     ← Banshee queue playlist ID
+//    ANTHROPIC_API_KEY       ← same key as BR (already have this)
+//    ALLOWED_ORIGIN          ← the real live BL origin, e.g.
+//                              https://rockboardbl.hauntedpubs.co.uk
+//                              (per lesson #4 — check which domain the
+//                              board.html screen actually loads, don't
+//                              assume it's the CNAME file's domain)
+//    FIREBASE_SERVICE_ACCOUNT← full JSON key — same Firebase project
+//                              as BR (rockboard-2b240), so this can
+//                              likely be the SAME service-account key
+//                              BR uses, just confirm it has access
+//    FIREBASE_PROJECT_ID     ← rockboard-2b240 (same project as BR)
+//    STRIPE_SECRET_KEY       ← reusing BR's: same Stripe account, so
+//                              this can be the exact same secret key
+//                              BR's worker uses — copy it over as-is
+//    STRIPE_WEBHOOK_SECRET   ← CANNOT be reused even though the account
+//                              is shared — a webhook's signing secret is
+//                              tied to the registered endpoint URL, and
+//                              BL is a different URL (rockboard-bl vs
+//                              rockboard-br). Register a NEW webhook in
+//                              Stripe Dashboard → Developers → Webhooks
+//                              pointing at this worker's own
+//                              /stripe-webhook URL, and use the secret
+//                              Stripe generates for that new endpoint
+//    STRIPE_PRICE_TIER1/2/3  ← reusing BR's: same Price IDs as BR's
+//                              worker (same £1/£2/£3 → 3/7/11 requests,
+//                              4/8/12 votes products). Note: since both
+//                              venues would be selling against the same
+//                              Stripe Price objects, Stripe's own
+//                              dashboard won't separate "Banshee sales"
+//                              from "Black Rose sales" by product/price
+//                              — you'd need to check the checkout
+//                              session's metadata.device_id or which
+//                              worker's webhook fired to tell them apart
+//                              there. The app itself stays fully
+//                              separate regardless (bl_entitlements /
+//                              bl_purchases vs br_*), since that's keyed
+//                              by which Worker ran, not which Price ID
+//                              was charged.
+//    APP_BASE_URL            ← https://rockboardbl.hauntedpubs.co.uk
+//                              (must match ALLOWED_ORIGIN's real domain)
 // ============================================================
 
-const CORS_HEADERS = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
+function corsHeaders(env) {
+  return {
+    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+// A device_id is used directly inside Firestore document paths. Without
+// validation, a crafted value containing "/" could target a completely
+// different document/collection than intended (path injection). Real
+// device IDs generated by the client look like "dev_abc123xyz".
+function isValidDeviceId(id) {
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+}
+
+// ============================================================
+//  GOOGLE SERVICE-ACCOUNT AUTH  (for writing to Firestore
+//  directly — bypasses Firestore security rules, so this must
+//  ONLY ever run server-side, never shipped to the browser)
+// ============================================================
+function base64url(bytes) {
+  let str = typeof bytes === 'string' ? btoa(bytes) : btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  return str.replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+async function getGoogleAccessToken(env) {
+  const sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); // full JSON key downloaded from Firebase
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claim = {
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/datastore',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  };
+  const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`;
+
+  const pem = sa.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n/g, '');
+  const keyBytes = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8', keyBytes.buffer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sigBuffer = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(unsigned));
+  const jwt = `${unsigned}.${base64url(sigBuffer)}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }),
+  });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Google auth failed: ' + JSON.stringify(data));
+  return data.access_token;
+}
+
+// ============================================================
+//  FIRESTORE REST HELPERS
+// ============================================================
+function fsIntField(n) { return { integerValue: String(n) }; }
+
+async function firestoreGetDoc(env, token, collection, docId) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collection}/${docId}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Firestore get failed: ' + (await res.text()));
+  const doc = await res.json();
+  const out = {};
+  for (const [k, v] of Object.entries(doc.fields || {})) {
+    out[k] = v.integerValue !== undefined ? Number(v.integerValue)
+            : v.stringValue !== undefined ? v.stringValue
+            : v.booleanValue !== undefined ? v.booleanValue
+            : v.timestampValue !== undefined ? v.timestampValue
+            : null;
+  }
+  return out;
+}
+
+// Records the purchase AND credits the entitlement in a single atomic
+// Firestore commit. This matters: if these were two separate calls, a
+// crash between them could leave a customer charged but never credited
+// — and since the purchase record would already exist, a Stripe webhook
+// retry would see "already processed" and skip crediting forever.
+// Bundling both writes into one commit means Firestore applies all of
+// them or none of them.
+// Returns true if this session had already been processed before (no-op).
+async function firestoreCreditPurchaseAtomically(env, token, sessionId, deviceId, chosen, amount, currency) {
+  const purchaseName = `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/bl_purchases/${sessionId}`;
+  const entitlementName = `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/bl_entitlements/${deviceId}`;
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents:commit`;
+
+  const body = {
+    writes: [
+      {
+        update: { name: purchaseName, fields: {
+          device_id: { stringValue: deviceId },
+          extraRequests: fsIntField(chosen.extraRequests),
+          extraVotes: fsIntField(chosen.extraVotes),
+          amount: fsIntField(amount),
+          currency: { stringValue: currency },
+          created: { timestampValue: new Date().toISOString() },
+        }},
+        currentDocument: { exists: false },  // fails the WHOLE commit if this session was already processed
+      },
+      { update: { name: entitlementName, fields: { updatedAt: { timestampValue: new Date().toISOString() } } }, updateMask: { fieldPaths: ['updatedAt'] } },
+      { transform: { document: entitlementName, fieldTransforms: [
+        { fieldPath: 'extraRequests', increment: fsIntField(chosen.extraRequests) },
+        { fieldPath: 'extraVotes',    increment: fsIntField(chosen.extraVotes) },
+      ]}},
+    ],
+  };
+  const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (res.ok) return false;                    // newly credited
+  const errBody = await res.json().catch(() => ({}));
+  if (errBody.error?.status === 'FAILED_PRECONDITION') return true;  // already processed — safe no-op
+  throw new Error('Firestore purchase commit failed: ' + JSON.stringify(errBody));
+}
+
+// ============================================================
+//  STRIPE WEBHOOK SIGNATURE VERIFICATION
+//  (manual HMAC check — Stripe's Node SDK isn't available in
+//  Workers, but the scheme is simple: HMAC-SHA256 of
+//  "{timestamp}.{raw_body}" using the webhook signing secret)
+// ============================================================
+async function verifyStripeSignature(rawBody, sigHeader, secret) {
+  const parts = Object.fromEntries(sigHeader.split(',').map(p => p.split('=')));
+  const timestamp = parts.t;
+  const expectedSig = parts.v1;
+  if (!timestamp || !expectedSig) return false;
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false; // 5 min tolerance
+
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${rawBody}`));
+  const computedSig = [...new Uint8Array(sigBuffer)].map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (computedSig.length !== expectedSig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < computedSig.length; i++) diff |= computedSig.charCodeAt(i) ^ expectedSig.charCodeAt(i);
+  return diff === 0;
+}
+
+// ============================================================
+//  TOP-UP TIERS — the ONLY source of truth for what a purchase
+//  is worth. The client sends a tier id; everything else
+//  (Stripe price, requests/votes granted) is looked up here,
+//  server-side, so a tampered client request can't change what
+//  gets credited. Keep in sync with CONFIG.topUpTiers in
+//  index.html, which is display-only.
+//  NOTE: extraRequests/extraVotes copied from BR's tiers as a
+//  starting point (3/4, 7/8, 11/12) — confirm these are the
+//  amounts you want for Banshee before going live, since pricing
+//  hasn't been discussed for BL specifically yet.
+// ============================================================
+function getTopUpTiers(env) {
+  return {
+    tier1: { priceId: env.STRIPE_PRICE_TIER1, extraRequests: 3,  extraVotes: 4  },
+    tier2: { priceId: env.STRIPE_PRICE_TIER2, extraRequests: 7,  extraVotes: 8  },
+    tier3: { priceId: env.STRIPE_PRICE_TIER3, extraRequests: 11, extraVotes: 12 },
+  };
+}
+
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
+    if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders(env) });
     const url = new URL(request.url);
     const path = url.pathname;
     async function getAccessToken() {
@@ -23,7 +233,7 @@ export default {
       if (!data.access_token) throw new Error('Token refresh failed: ' + JSON.stringify(data));
       return data.access_token;
     }
-    function json(data, status=200) { return new Response(JSON.stringify(data), {status, headers:{...CORS_HEADERS,'Content-Type':'application/json'}}); }
+    function json(data, status=200) { return new Response(JSON.stringify(data), {status, headers:{...corsHeaders(env),'Content-Type':'application/json'}}); }
     try {
       if (path === '/search') {
         const token  = await getAccessToken();
@@ -48,6 +258,8 @@ export default {
           .replace(/\s+/g, ' ')
           .trim();
 
+        let item = null;
+
         async function tryKeyword(t, a) {
           const q = a ? `${t} ${a}` : t;
           const res = await fetch(
@@ -64,13 +276,29 @@ export default {
           return exact || items.find(i => i.name.toLowerCase() === t.toLowerCase()) || items[0];
         }
 
-        let item = null;
-        const searches = [[track, artist],[track, normArtist],[track, '']];
-        for (const [t, a] of searches) { item = await trySearch(t, a); if (item) break; }
-        if (!item) {
-          const kwSearches = [[track, normArtist],[track, artist],[track, '']];
-          for (const [t, a] of kwSearches) { item = await tryKeyword(t, a); if (item) break; }
+        const searches = [
+          [track, artist],
+          [track, normArtist],
+          [track, ''],
+        ];
+
+        for (const [t, a] of searches) {
+          item = await trySearch(t, a);
+          if (item) break;
         }
+
+        if (!item) {
+          const kwSearches = [
+            [track, normArtist],
+            [track, artist],
+            [track, ''],
+          ];
+          for (const [t, a] of kwSearches) {
+            item = await tryKeyword(t, a);
+            if (item) break;
+          }
+        }
+
         if (!item) return json({error:'Track not found'},404);
         return json({uri:item.uri,name:item.name,artist:item.artists[0].name,album:item.album.name,image:item.album.images[0]?.url||'',duration:item.duration_ms});
       }
@@ -119,6 +347,7 @@ export default {
         const prompt = body.prompt || '';
         if (!prompt) return json({error:'No prompt'},400);
         if (!env.ANTHROPIC_API_KEY) return json({error:'No API key configured'},500);
+
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -127,15 +356,82 @@ export default {
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model:      'claude-sonnet-4-6',
-            max_tokens: 800,
+            model:      'claude-haiku-4-5-20251001',
+            max_tokens: 300,
             messages:   [{ role: 'user', content: prompt }],
           }),
         });
+
         const data = await res.json();
         if (!res.ok) return json({error: data.error?.message || 'API error'}, res.status);
         return json(data);
       }
+
+      // ── STRIPE: read a device's purchased top-ups ──
+      if (path === '/entitlement') {
+        const deviceId = url.searchParams.get('device_id');
+        if (!isValidDeviceId(deviceId)) return json({error:'Bad device_id'},400);
+        const token = await getGoogleAccessToken(env);
+        const doc = await firestoreGetDoc(env, token, 'bl_entitlements', deviceId);
+        return json({ extraVotes: doc?.extraVotes || 0, extraRequests: doc?.extraRequests || 0 });
+      }
+
+      // ── STRIPE: start a Checkout Session for a top-up tier ──
+      if (path === '/create-checkout-session' && request.method === 'POST') {
+        const { device_id, tier } = await request.json();
+        const TIERS = getTopUpTiers(env);
+        const chosen = TIERS[tier];
+        if (!isValidDeviceId(device_id) || !chosen) return json({error:'Bad request'},400);
+        if (!chosen.priceId) return json({error:`No Stripe price configured for ${tier}`},500);
+        if (!env.APP_BASE_URL) return json({error:'Server misconfigured: APP_BASE_URL not set'},500);
+
+        // success_url/cancel_url are built ONLY from a server-configured
+        // base URL, never from anything the client sends — otherwise a
+        // crafted checkout link could redirect a paying customer to an
+        // attacker's page after a real payment (open redirect).
+        const base = env.APP_BASE_URL.replace(/\/+$/,'');
+        const params = new URLSearchParams({
+          mode: 'payment',
+          'line_items[0][price]': chosen.priceId,
+          'line_items[0][quantity]': '1',
+          success_url: `${base}?paid=1&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url:  base,
+          'metadata[device_id]': device_id,
+          'metadata[tier]': tier,   // amounts are re-derived from this at webhook time, never trusted from the client
+        });
+
+        const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params,
+        });
+        const session = await res.json();
+        if (!session.url) return json({error: session.error?.message || 'Stripe error'}, 400);
+        return json({ url: session.url });
+      }
+
+      // ── STRIPE: webhook — credits the entitlement once payment is confirmed ──
+      if (path === '/stripe-webhook' && request.method === 'POST') {
+        const rawBody = await request.text();
+        const sig = request.headers.get('Stripe-Signature') || '';
+        const valid = await verifyStripeSignature(rawBody, sig, env.STRIPE_WEBHOOK_SECRET);
+        if (!valid) return json({error:'Invalid signature'},400);
+
+        const event = JSON.parse(rawBody);
+        if (event.type === 'checkout.session.completed') {
+          const session = event.data.object;
+          const { device_id, tier } = session.metadata || {};
+          const chosen = getTopUpTiers(env)[tier];
+          if (isValidDeviceId(device_id) && chosen) {
+            const token = await getGoogleAccessToken(env);
+            await firestoreCreditPurchaseAtomically(
+              env, token, session.id, device_id, chosen, session.amount_total, session.currency
+            );
+          }
+        }
+        return json({received:true});
+      }
+
       return json({error:'Unknown endpoint'},404);
     } catch(e) { return json({error:e.message},500); }
   }

@@ -32,7 +32,72 @@
   .vl-label{font-size:10px;font-weight:600;color:var(--grey);letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
   .vl-num{font-size:32px;font-weight:900;color:var(--green);line-height:1;display:block;text-align:center}
   .vl-num.warn{color:var(--amber)}
-  .vl-num.empty{color:#6600cc}
+  .vl-num.empty{color:#8b0000}
+  .get-more-btn{
+    margin-left:14px;font-size:11px;font-weight:800;letter-spacing:0.6px;
+    background:rgba(102,0,204,0.18);color:var(--pink);border:1px solid rgba(255,255,255,0.25);
+    border-radius:7px;padding:8px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    white-space:nowrap;
+  }
+  .get-more-btn:active{background:rgba(102,0,204,0.32)}
+  .get-more-btn:disabled{opacity:0.5;cursor:default}
+  .purchase-toast{
+    position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:500;
+    background:rgba(20,20,22,0.97);border:1px solid rgba(102,0,204,0.4);border-radius:10px;
+    padding:12px 18px;font-size:13px;font-weight:600;text-align:center;max-width:88%;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  }
+  .topup-modal{
+    position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.7);
+    display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);
+  }
+  .topup-sheet{
+    background:var(--surface);border:1px solid rgba(102,0,204,0.3);border-radius:16px 16px 0 0;
+    padding:22px 20px 28px;width:100%;max-width:480px;
+  }
+  .topup-title{font-family:var(--font-alt);font-size:16px;font-weight:800;letter-spacing:1px}
+  .topup-sub{font-size:12px;color:var(--grey);margin-top:4px;margin-bottom:18px}
+  .topup-tier{
+    display:flex;justify-content:space-between;align-items:center;width:100%;
+    background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:12px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;color:var(--white);
+    -webkit-tap-highlight-color:transparent;text-align:left;
+  }
+  .topup-tier:active{background:var(--surface3)}
+  .topup-tier .tt-price{font-family:var(--font-alt);font-size:22px;font-weight:800;color:var(--pink);min-width:44px}
+  .topup-tier .tt-grant{font-size:13px;color:var(--light);font-weight:600}
+  .topup-close{
+    width:100%;background:none;border:1px solid rgba(255,255,255,0.12);color:var(--grey);
+    border-radius:12px;padding:12px;font-size:14px;font-weight:700;margin-top:4px;cursor:pointer;
+  }
+
+  /* ── BACK TO MENU BANNER — only shown when linked from the ordering app ── */
+  #back-to-menu-banner{
+    display:none; position:relative; align-items:center; gap:9px;
+    margin:0; padding:10px 20px;
+    background:rgba(102,0,204,0.07);
+    border:0; border-bottom:1px solid rgba(102,0,204,0.16);
+    text-decoration:none; color:var(--white);
+    transition:background 0.2s;
+  }
+  #back-to-menu-banner.show{display:flex}
+  #back-to-menu-banner:active{
+    background:rgba(102,0,204,0.15);
+  }
+  #back-to-menu-banner .btm-copy{
+    flex:1; min-width:0; display:flex; align-items:baseline; gap:7px;
+  }
+  #back-to-menu-banner .btm-title{
+    display:block; font-family:var(--font); font-size:14px; font-weight:700;
+    letter-spacing:0.1px; line-height:1.25; white-space:nowrap;
+  }
+  #back-to-menu-banner .btm-sub{
+    display:block; font-size:11px; color:var(--grey); white-space:nowrap;
+  }
+  #back-to-menu-banner .btm-arrow{
+    width:18px; display:grid; place-items:center; flex-shrink:0;
+    color:#a875ff; font-size:23px; font-weight:500; line-height:1;
+  }
 
   /* ── NOW PLAYING STRIP ── */
   #now-playing-strip{
@@ -90,7 +155,7 @@
   .inp-wrap{position:relative}
   .inp-wrap input{
     width:100%;background:var(--surface2);
-    border:none;
+    border:1px solid rgba(255,255,255,0.25);
     border-radius:14px;padding:17px 44px 17px 20px;
     color:var(--white);font-family:var(--font);font-size:16px;font-weight:500;
     outline:none;transition:all 0.2s;-webkit-appearance:none;
@@ -147,7 +212,7 @@
   .name-field label{display:block;font-size:13px;font-weight:700;color:var(--grey);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
   .name-field input{
     width:100%;background:var(--surface2);
-    border:none;border-radius:14px;
+    border:1px solid rgba(255,255,255,0.25);border-radius:14px;
     padding:17px 20px;color:var(--white);font-family:var(--font);
     font-size:16px;font-weight:500;outline:none;-webkit-appearance:none;transition:all 0.2s;
     -webkit-text-fill-color:var(--white);
@@ -228,19 +293,39 @@
 
 <div id="top-bar">
   <img id="top-logo" src="assets/banshee-logo.png" alt="The Banshee Labyrinth" onerror="this.style.display='none';document.getElementById('top-venue-text').style.display='block'">
-  <div id="top-venue-text" style="display:none"><div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px">THE BANSHEE LABYRINTH</div><div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#6c2bd9;letter-spacing:3px;text-transform:uppercase">ROCKBOARD</div></div>
+  <div id="top-venue-text" style="display:none"><div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px">THE BANSHEE LABYRINTH</div><div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#6600cc;letter-spacing:3px;text-transform:uppercase">ROCKBOARD</div></div>
   <div id="votes-left-badge">
     <div class="counter-item">
       <div class="vl-label">REQUESTS LEFT</div>
-      <span class="vl-num" id="reqs-left-num">6</span>
+      <span class="vl-num" id="reqs-left-num">1</span>
     </div>
     <div class="counter-divider"></div>
     <div class="counter-item">
       <div class="vl-label">VOTES LEFT</div>
-      <span class="vl-num" id="votes-left-num">13</span>
+      <span class="vl-num" id="votes-left-num">2</span>
     </div>
+    <button class="get-more-btn" onclick="openTopUpModal()">GET MORE</button>
   </div>
 </div>
+
+<div id="purchase-toast" class="purchase-toast" style="display:none"></div>
+
+<div id="topup-modal" class="topup-modal" style="display:none">
+  <div class="topup-sheet">
+    <div class="topup-title">GET MORE REQUESTS &amp; VOTES</div>
+    <div class="topup-sub">Pick a top-up — added to what you already have</div>
+    <div id="topup-tiers"></div>
+    <button class="topup-close" onclick="closeTopUpModal()">Cancel</button>
+  </div>
+</div>
+
+<a id="back-to-menu-banner" href="https://menu.hauntedpubs.co.uk/?menu_access=active">
+  <span class="btm-arrow" aria-hidden="true">‹</span>
+  <span class="btm-copy">
+    <span class="btm-title">Back to ordering</span>
+    <span class="btm-sub">Browse the drinks menu</span>
+  </span>
+</a>
 
 <div id="now-playing-strip">
   <div id="np-dot"></div>
@@ -364,6 +449,7 @@
 
 <div class="section" style="margin-top:24px;">
   <div class="section-title">Vote for the next track 🤘</div>
+  <div style="font-size:11px;color:var(--grey);margin:-8px 0 12px;letter-spacing:0.3px">Your free vote counts once — purchased votes count double 🤘</div>
   <div id="vote-list">
     <div id="empty-board">NO TRACKS YET TONIGHT<br>BE THE FIRST TO REQUEST ONE<br>🎸</div>
   </div>
@@ -385,6 +471,9 @@ function resetSong()       { window.resetSong      && window.resetSong();       
 function submitRequest()   { window.submitRequest  && window.submitRequest();   }
 function voteFor(id)       { window.voteFor        && window.voteFor(id);       }
 function outsideTap(e)     { window.outsideTap     && window.outsideTap(e);     }
+function openTopUpModal()  { window.openTopUpModal && window.openTopUpModal();  }
+function closeTopUpModal() { window.closeTopUpModal && window.closeTopUpModal();}
+function buyTier(id)       { window.buyTier        && window.buyTier(id);       }
 </script>
 
 <script type="module">
@@ -394,12 +483,25 @@ import { getFirestore, collection, onSnapshot, query, orderBy, doc, addDoc, upda
 // ── CONFIG ──
 const CONFIG = {
   venueName:          "THE BANSHEE LABYRINTH",
-  maxRequestsPerHour: 6,
-  maxVotesPerHour:    13,
+  maxRequestsPerHour: 1,
+  // Free votes are worth 1 point each. Once someone's used their free
+  // vote(s), any further vote they cast draws from a purchased "double
+  // vote" pool instead — worth 2 points. See voteFor() below for exactly
+  // where that split happens.
+  maxVotesPerHour:    2,
+  // Display only — the Worker holds the real prices/grants server-side
+  // and is the only thing that decides what a purchase actually credits.
+  // Keep this in sync with TOPUP_TIERS in cloudflare-worker.js so the
+  // sheet shown to guests matches what they actually get.
+  topUpTiers: [
+    { id: 'tier1', priceLabel: '£1', extraRequests: 3,  extraVotes: 4  },
+    { id: 'tier2', priceLabel: '£2', extraRequests: 7,  extraVotes: 8  },
+    { id: 'tier3', priceLabel: '£3', extraRequests: 11, extraVotes: 12 },
+  ],
   spotify_worker_url: "https://rockboard-bl.eddrock79.workers.dev",
-  youtube_key:        "AIzaSyC88WDG2bnABTur-Nup7E2uDE9af-RHu1E",
-  lastfm_user:        "eddrock79",
-  lastfm_key:         "78658e952901ff5d096dc83873d22049",
+  youtube_key:        "BANSHEE_YOUTUBE_API_KEY",   // ← TO FILL: new key from console.cloud.google.com
+  lastfm_user:        "BANSHEE_LASTFM_USER",       // ← TO FILL: e.g. "bansheelabyrinthrb"
+  lastfm_key:         "78658e952901ff5d096dc83873d22049",  // same key works for any account
   firebase: {
     apiKey:            "AIzaSyCBV3mususv2A_ss0vEiUDxA6PBGCOLCgc",
     authDomain:        "rockboard-2b240.firebaseapp.com",
@@ -412,7 +514,7 @@ const CONFIG = {
 
 const fbApp = initializeApp(CONFIG.firebase);
 const db    = getFirestore(fbApp);
-// ── BR venue collection names ──
+// ── BL venue collection names ──
 const C_TRACKS   = 'bl_tracks';
 const C_PLAYED   = 'bl_played';
 const C_SETTINGS = 'bl_settings';
@@ -421,61 +523,159 @@ const topVenue = document.getElementById('top-venue');
 if (topVenue) topVenue.textContent = CONFIG.venueName;
 document.title = CONFIG.venueName + ' · Request a Track';
 
-// ── SESSION VALIDATION — must have scanned QR to access ──
-(async function validateSession() {
-  const SESSION_KEY  = 'rb_session_token';
-  const REDIRECT_URL = 'https://www.blackrosetavern.com/';
-  const params       = new URLSearchParams(window.location.search);
-  const urlToken     = params.get('s');
+// ── ACCESS GATE — two independent ways in ──
+// 1) SCREEN QR: board.html shows a QR carrying a rotating token
+//    (?s=TOKEN) that's checked against Firestore, session lasts until
+//    board.html rotates it (~2 hours). Unchanged from before.
+// 2) TABLE QR / LINKED FROM MENUBR: a printed sticker (static forever)
+//    or a plain link from the ordering site — either way there's no
+//    token, just the plain URL. Arriving fresh starts a private
+//    2-hour countdown stored on that device (matches the ordering
+//    app's own QR window, and the screen QR's rotation length).
+//    Refreshing the page during that window doesn't reset the clock;
+//    once it's up, or if neither grant applies, the page bounces to
+//    the main site.
+(async function accessGate(){
+  const REDIRECT_URL = 'https://www.thebansheelabyrinth.com/';
 
-  // Fresh QR scan — validate against Firebase first, then store if valid.
-  // This ensures re-scanning the QR always works, even after session expiry.
-  if (urlToken) {
-    try {
+  // -- Screen-QR bits --
+  const SESSION_KEY = 'rb_session_token';
+
+  // -- Table-QR / linked-visit bits --
+  const ACCESS_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+  const ACCESS_KEY    = 'rb-request-access-until-v1';
+  const VISIT_MARKER  = 'rb_access';
+  const FROM_MENU_KEY = 'rb-from-menu';
+  let expiryTimer = null;
+
+  const startUrl = new URL(window.location.href);
+  const isFreshVisit = !startUrl.searchParams.has(VISIT_MARKER);
+  const cameFromMenu = startUrl.searchParams.get('src') === 'menu';
+
+  function redirectToWebsite(){ window.location.replace(REDIRECT_URL); }
+  function stripKnownParams(u){ u.searchParams.delete('s'); u.searchParams.delete('src'); }
+  function cleanUrl(){
+    const u = new URL(window.location.href);
+    stripKnownParams(u);
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+  }
+
+  // ---- "Back to menu" strip — only shown when the ?src=menu link was used ----
+  function updateBackToMenuUi(){
+    const el = document.getElementById('back-to-menu-banner');
+    if(!el) return;
+    let show = false;
+    try{ show = localStorage.getItem(FROM_MENU_KEY) === '1'; }catch(e){}
+    el.classList.toggle('show', show);
+  }
+  function setFromMenuFlag(on){
+    try{
+      if(on) localStorage.setItem(FROM_MENU_KEY, '1');
+      else localStorage.removeItem(FROM_MENU_KEY);
+    }catch(e){}
+    updateBackToMenuUi();
+  }
+  // A fresh arrival re-evaluates where they came from (table QR, screen QR,
+  // or the ordering app); a page already mid-session keeps whatever was
+  // recorded when that session started.
+  if(isFreshVisit) setFromMenuFlag(cameFromMenu);
+  else updateBackToMenuUi();
+
+  // ---- Path 1: screen QR — fresh scan carries ?s=TOKEN ----
+  const urlToken = startUrl.searchParams.get('s');
+  if(urlToken){
+    try{
       const snap = await getDoc(doc(db, C_SETTINGS, 'session'));
-      if (snap.exists()) {
+      if(snap.exists()){
         const { token, expiry } = snap.data();
-        if (urlToken === token && Date.now() <= expiry) {
-          // Valid fresh scan — store and allow in
+        if(urlToken === token && Date.now() <= expiry){
           localStorage.setItem(SESSION_KEY, urlToken);
-          window.history.replaceState({}, '', window.location.pathname);
-          return; // ✅ good to go
+          cleanUrl();
+          return; // ✅ in via the screen QR
         }
       }
-    } catch(e) {
-      // Firebase blip — store token and let them through rather than blocking
-      console.warn('Session check failed on fresh scan, allowing through', e);
+      // Token present but stale/mismatched — QR on screen has since
+      // rotated. Fall through to the table-QR check below rather than
+      // bouncing immediately, in case this device separately has (or
+      // can start) a valid 1-hour window.
+    }catch(e){
+      console.warn('Screen session check failed on fresh scan, allowing through', e);
       localStorage.setItem(SESSION_KEY, urlToken);
-      window.history.replaceState({}, '', window.location.pathname);
+      cleanUrl();
       return;
     }
-    // Token in URL didn't match Firebase — QR is stale, redirect
-    window.location.replace(REDIRECT_URL);
-    return;
   }
 
-  // No token in URL — check stored token from a previous scan
+  // ---- Path 1b: already holding a valid screen-QR session ----
   const storedToken = localStorage.getItem(SESSION_KEY);
-  if (!storedToken) {
-    window.location.replace(REDIRECT_URL);
+  if(storedToken){
+    try{
+      const snap = await getDoc(doc(db, C_SETTINGS, 'session'));
+      if(snap.exists()){
+        const { token, expiry } = snap.data();
+        if(storedToken === token && Date.now() <= expiry){
+          cleanUrl();
+          return; // ✅ still within the screen-QR session
+        }
+      }
+      localStorage.removeItem(SESSION_KEY); // rotated/expired — clear it
+    }catch(e){
+      // Firebase blip — fail open rather than lock someone out over a network hiccup
+      console.warn('Screen session recheck failed, allowing through', e);
+      return;
+    }
+  }
+
+  // ---- Path 2: table QR — local 1-hour window, no token needed ----
+  function readExpiry(){
+    try{
+      const v = Number(localStorage.getItem(ACCESS_KEY));
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    }catch(e){ return 0; }
+  }
+  function saveExpiry(v){
+    try{ localStorage.setItem(ACCESS_KEY, String(v)); return true; }
+    catch(e){ return false; }
+  }
+  function markVisit(){
+    const u = new URL(window.location.href);
+    u.searchParams.set(VISIT_MARKER, 'active');
+    stripKnownParams(u);
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+  }
+  function scheduleExpiry(){
+    if(expiryTimer){ clearTimeout(expiryTimer); expiryTimer = null; }
+    const remaining = readExpiry() - Date.now();
+    if(remaining <= 0){ redirectToWebsite(); return; }
+    // Recheck periodically so a suspended background tab still redirects
+    // promptly once its hour is actually up.
+    expiryTimer = setTimeout(scheduleExpiry, Math.min(remaining, 30000));
+  }
+
+  const url = startUrl;
+
+  if(isFreshVisit){
+    const expiresAt = Date.now() + ACCESS_DURATION_MS;
+    if(!saveExpiry(expiresAt)){
+      // Storage unavailable — keep the expiry in the URL so at least this
+      // open tab still honours the hour.
+      url.searchParams.set(VISIT_MARKER, String(expiresAt));
+      stripKnownParams(url);
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }else{
+      markVisit();
+    }
+  }else if(!readExpiry()){
+    const fallback = Number(url.searchParams.get(VISIT_MARKER));
+    if(!Number.isFinite(fallback) || fallback <= Date.now()){ redirectToWebsite(); return; }
+    expiryTimer = setTimeout(redirectToWebsite, fallback - Date.now());
     return;
   }
 
-  // Validate stored token against Firebase
-  try {
-    const snap = await getDoc(doc(db, C_SETTINGS, 'session'));
-    if (!snap.exists()) { window.location.replace(REDIRECT_URL); return; }
-    const { token, expiry } = snap.data();
-    if (storedToken !== token || Date.now() > expiry) {
-      // Session expired — clear stored token and redirect
-      localStorage.removeItem(SESSION_KEY);
-      window.location.replace(REDIRECT_URL);
-    }
-    // else: stored token still valid, allow through
-  } catch(e) {
-    // Firebase read failed — fail open so a network blip doesn't lock everyone out
-    console.warn('Session check failed, allowing through', e);
-  }
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) scheduleExpiry();
+  });
+  scheduleExpiry();
 })();
 
 // ── DEVICE ID ──
@@ -486,19 +686,100 @@ function getDeviceId() {
 }
 const DEVICE_ID = getDeviceId();
 
+// ── ENTITLEMENTS (paid top-ups) ──
+// Source of truth lives server-side in Firestore (bl_entitlements/{device}),
+// written only by the Cloudflare Worker after a Stripe webhook confirms
+// payment. The client only ever *reads* this — it never trusts a local
+// value for "have I paid", since localStorage is trivially editable.
+let ENTITLEMENT = { extraVotes: 0, extraRequests: 0 };
+
+async function refreshEntitlement() {
+  try {
+    const res = await fetch(`${CONFIG.spotify_worker_url}/entitlement?device_id=${encodeURIComponent(DEVICE_ID)}`);
+    if (res.ok) ENTITLEMENT = await res.json();
+  } catch (e) { console.warn('Entitlement fetch failed', e); }
+  updateBadge();
+}
+
+function openTopUpModal() {
+  const list = document.getElementById('topup-tiers');
+  list.innerHTML = CONFIG.topUpTiers.map(t => `
+    <button class="topup-tier" onclick="buyTier('${t.id}')">
+      <span class="tt-price">${t.priceLabel}</span>
+      <span class="tt-grant">+${t.extraRequests} requests<br>+${t.extraVotes} double votes</span>
+    </button>
+  `).join('');
+  document.getElementById('topup-modal').style.display = 'flex';
+}
+function closeTopUpModal() {
+  document.getElementById('topup-modal').style.display = 'none';
+}
+window.openTopUpModal = openTopUpModal;
+window.closeTopUpModal = closeTopUpModal;
+
+async function buyTier(tierId) {
+  const tierBtns = document.querySelectorAll('.topup-tier');
+  tierBtns.forEach(b => b.disabled = true);
+  try {
+    const res = await fetch(`${CONFIG.spotify_worker_url}/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Only device_id + tier id are sent — the Worker looks up the real
+      // price and grant amounts itself, so nothing the client sends can
+      // change what a purchase is worth.
+      body: JSON.stringify({ device_id: DEVICE_ID, tier: tierId })
+    });
+    const data = await res.json();
+    if (data.url) { window.location.href = data.url; return; }
+    showPurchaseToast('Could not start checkout — try again in a moment.');
+  } catch (e) {
+    showPurchaseToast('Could not start checkout — check your connection.');
+  }
+  tierBtns.forEach(b => b.disabled = false);
+}
+window.buyTier = buyTier;
+
+function showPurchaseToast(msg) {
+  const el = document.getElementById('purchase-toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// Handle the redirect back from Stripe Checkout (?paid=1&session_id=...)
+(async function handleCheckoutReturn(){
+  const u = new URL(window.location.href);
+  if (u.searchParams.get('paid') !== '1') return;
+  const sessionId = u.searchParams.get('session_id') || '';
+  u.searchParams.delete('paid'); u.searchParams.delete('session_id');
+  window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+  showPurchaseToast('Payment received — adding your top-up…');
+  // The webhook usually beats the redirect back, but poll briefly in case
+  // it hasn't landed yet.
+  for (let i = 0; i < 5; i++) {
+    await refreshEntitlement();
+    if (ENTITLEMENT.extraVotes > 0 || ENTITLEMENT.extraRequests > 0) break;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  showPurchaseToast("You're topped up 🤘");
+})();
+
 // ── RATE LIMITING ──
 function getBucket(key) {
   try { const d = JSON.parse(localStorage.getItem(key)||'null') || {count:0,windowStart:Date.now(),used:{}}; return Date.now()-d.windowStart>3600000 ? {count:0,windowStart:Date.now(),used:{}} : d; }
   catch(e) { return {count:0,windowStart:Date.now(),used:{}}; }
 }
 function saveBucket(k,d) { try{localStorage.setItem(k,JSON.stringify(d))}catch(e){} }
-function canRequest()  { return getBucket('rb_req').count  < CONFIG.maxRequestsPerHour; }
-function canVote(id)   { const d=getBucket('rb_vote'); return d.count<CONFIG.maxVotesPerHour && !d.used[id]; }
+function requestLimit() { return CONFIG.maxRequestsPerHour + (ENTITLEMENT.extraRequests || 0); }
+function voteLimit()    { return CONFIG.maxVotesPerHour    + (ENTITLEMENT.extraVotes    || 0); }
+function canRequest()  { return getBucket('rb_req').count  < requestLimit(); }
+function canVote(id)   { const d=getBucket('rb_vote'); return d.count<voteLimit() && !d.used[id]; }
 function useRequest()  { const d=getBucket('rb_req');  d.count++; saveBucket('rb_req',d); }
 function useVote(id)   { const d=getBucket('rb_vote'); d.count++; d.used[id]=true; saveBucket('rb_vote',d); }
 function hasVoted(id)  { return !!getBucket('rb_vote').used[id]; }
-function votesLeft()   { return Math.max(0, CONFIG.maxVotesPerHour - getBucket('rb_vote').count); }
-function reqLeft()     { return Math.max(0, CONFIG.maxRequestsPerHour - getBucket('rb_req').count); }
+function votesLeft()   { return Math.max(0, voteLimit()    - getBucket('rb_vote').count); }
+function reqLeft()     { return Math.max(0, requestLimit() - getBucket('rb_req').count); }
 
 function updateBadge() {
   const vl = votesLeft();
@@ -762,13 +1043,24 @@ window.submitRequest = async function() {
 };
 
 // ── VOTE ──
+// Free votes score 1 point. Once a device has used up its free
+// maxVotesPerHour allowance, any further vote it casts is drawn from a
+// purchased "double vote" pool instead, and scores 2 points — same as if
+// two people had voted. getBucket('rb_vote').count is how many votes this
+// device has already cast in the current hour, BEFORE this one — so if
+// that's still under the free limit, this cast is free (weight 1);
+// once it's at or past the free limit, it must be coming from purchased
+// entitlement (weight 2). Free votes are always spent first.
 window.voteFor = async function(id) {
   if (hasVoted(id))  { showToast('ALREADY VOTED FOR THIS ONE'); return; }
   if (!canVote(id))  { showToast("YOU'VE USED ALL YOUR VOTES"); updateBadge(); return; }
+  const alreadyCast = getBucket('rb_vote').count;
+  const isDoubleVote = alreadyCast >= CONFIG.maxVotesPerHour;
+  const weight = isDoubleVote ? 2 : 1;
   useVote(id);
   try {
-    await updateDoc(doc(db,C_TRACKS,id), { votes:increment(1), uniqueVoters:increment(1), voters:arrayUnion(DEVICE_ID) });
-    showToast('🤘 VOTE CAST!');
+    await updateDoc(doc(db,C_TRACKS,id), { votes:increment(weight), uniqueVoters:increment(weight), voters:arrayUnion(DEVICE_ID) });
+    showToast(isDoubleVote ? '🤘 DOUBLE VOTE CAST!' : '🤘 VOTE CAST!');
   } catch(e) { showToast('ERROR · TRY AGAIN'); }
   updateBadge();
 };
@@ -906,6 +1198,7 @@ let tt;
 function showToast(t) { const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('on'),2500); }
 
 updateBadge();
+refreshEntitlement();
 </script>
 </body>
 </html>
