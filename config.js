@@ -15,12 +15,12 @@ const VENUE_CONFIG = {
 
   // ── LAST.FM (Now Playing display) ────────────────────────
   // PLACEHOLDER: Create/provide Last.fm account for Banshee
-  lastfm_user:  "BANSHEE_LASTFM_USER",       // ← TO FILL: e.g. "bansheelabyrinthrb"
+  lastfm_user:  "Bansheelab",       // set — not currently read by any code path (see note below), kept for consistency
   lastfm_key:   "78658e952901ff5d096dc83873d22049",  // same key works
 
   // ── YOUTUBE (Music video background) ─────────────────────
   // PLACEHOLDER: Create a new YouTube API key restricted to rockboardbl domain
-  youtube_key:  "BANSHEE_YOUTUBE_API_KEY",   // ← TO FILL: new key from console.cloud.google.com
+  youtube_key:  "AIzaSyCbR-a9RmxZZyLXX0sPwgU2KbiBZpvXVVM",   // rockboard-banshee project, restricted to YouTube Data API v3 + BL's two domains
 
   // ── SPOTIFY (Auto-queue via Cloudflare Worker) ───────────
   // PLACEHOLDER: Deploy new Cloudflare Worker "rockboard-bl"
